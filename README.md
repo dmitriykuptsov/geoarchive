@@ -39,7 +39,7 @@ docker --version
 docker compose version
 ```
 
-##Project Structure
+## Project Structure
 
 The project currently has a structure similar to:
 
