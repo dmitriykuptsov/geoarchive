@@ -5,6 +5,8 @@ from sqlalchemy import (
     ForeignKey,
     String,
     Text,
+    UniqueConstraint,
+    ForeignKey,
 )
 
 from sqlalchemy.orm import (
@@ -28,6 +30,13 @@ class Deposit(
 ):
 
     __tablename__ = "deposits"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "name",
+            name="uq_deposits_name",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         BIGINT(unsigned=True),
@@ -111,3 +120,5 @@ class Deposit(
         back_populates="deposit",
         cascade="all, delete-orphan",
     )
+
+    

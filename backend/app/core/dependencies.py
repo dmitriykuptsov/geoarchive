@@ -11,6 +11,11 @@ from app.core.security import decode_access_token
 from app.models.user import User
 from app.models.role import Role
 
+from app.services.deposit_access import (
+    can_administer_deposit, 
+    can_edit_deposit, 
+    can_view_deposit
+)
 
 oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/api/auth/login"
@@ -117,3 +122,38 @@ def require_password_changed(
         )
 
     return current_user
+
+def require_deposit_view_access(
+    db: Session,
+    user: User,
+    deposit_id: int,
+) -> None:
+
+    if not can_view_deposit(
+        db,
+        user,
+        deposit_id,
+    ):
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this deposit",
+        )
+    
+
+def require_deposit_edit_access(
+    db: Session,
+    user: User,
+    deposit_id: int,
+) -> None:
+
+    if not can_edit_deposit(
+        db,
+        user,
+        deposit_id,
+    ):
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Edit access required",
+        )
