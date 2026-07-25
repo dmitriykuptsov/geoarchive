@@ -1,0 +1,14 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+COPY . .
+
+RUN bash install.sh
+
+EXPOSE 8000
+
+CMD ["bash", "run.sh"]
