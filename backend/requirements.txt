@@ -4,6 +4,7 @@ sqlalchemy
 pymysql 
 alembic 
 pydantic-settings
+pydantic[email]
 pwdlib[argon2]
 PyJWT
 
