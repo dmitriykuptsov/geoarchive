@@ -14,10 +14,20 @@ from app.core.dependencies import (
     get_current_user,
     get_db,
     require_password_changed,
+    require_global_admin
 )
 
 from app.models.deposit import Deposit
 from app.models.user import User
+from app.models.access_group import AccessGroup
+from app.models.group_member import (
+    GroupMember
+)
+
+from app.models.deposit_access import (
+    DepositAccess,
+    DepositAccessLevel
+)
 
 from app.services.deposit_access import (
     can_view_deposit,
@@ -31,6 +41,10 @@ from app.schemas.deposit import (
     DepositUpdateRequest,
 )
 
+from app.schemas.deposit_access import (
+    DepositAccessCreateRequest,
+    DepositAccessResponse,
+)
 
 router = APIRouter()
 
@@ -221,3 +235,223 @@ def update_deposit(
     db.refresh(deposit)
 
     return deposit
+
+
+@router.post(
+    "/{deposit_id}/access-groups",
+    response_model=DepositAccessResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def grant_deposit_access(
+    deposit_id: int,
+    request: DepositAccessCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+) -> DepositAccess:
+
+    deposit = db.scalar(
+        select(Deposit).where(
+            Deposit.id == deposit_id,
+        )
+    )
+
+    if deposit is None:
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Deposit not found",
+        )
+
+    # Check that the current user has ADMIN access
+    # to this deposit.
+    has_admin_access = db.scalar(
+        select(DepositAccess.id)
+        .join(
+            GroupMember,
+            GroupMember.group_id
+            == DepositAccess.group_id,
+        )
+        .where(
+            DepositAccess.deposit_id
+            == deposit_id,
+
+            GroupMember.user_id
+            == current_user.id,
+
+            DepositAccess.access_level
+            == DepositAccessLevel.ADMIN,
+        )
+    )
+
+    if has_admin_access is None:
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Administrator access to this deposit "
+                "is required"
+            ),
+        )
+
+    group = db.scalar(
+        select(AccessGroup).where(
+            AccessGroup.id == request.group_id,
+            AccessGroup.is_active.is_(True),
+        )
+    )
+
+    if group is None:
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Access group not found",
+        )
+
+    existing_access = db.scalar(
+        select(DepositAccess).where(
+            DepositAccess.deposit_id == deposit_id,
+            DepositAccess.group_id
+            == request.group_id,
+        )
+    )
+
+    if existing_access is not None:
+
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "This group already has access "
+                "to this deposit"
+            ),
+        )
+
+    access = DepositAccess(
+        deposit_id=deposit_id,
+        group_id=request.group_id,
+        access_level=request.access_level,
+    )
+
+    db.add(access)
+    db.commit()
+    db.refresh(access)
+
+    return access
+
+
+@router.delete(
+    "/{deposit_id}/access-groups/{group_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def revoke_deposit_access(
+    deposit_id: int,
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+) -> None:
+
+    access = db.scalar(
+        select(DepositAccess).where(
+            DepositAccess.deposit_id == deposit_id,
+            DepositAccess.group_id == group_id,
+        )
+    )
+
+    if access is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Deposit access rule not found",
+        )
+
+    has_admin_access = db.scalar(
+        select(DepositAccess.id)
+        .join(
+            GroupMember,
+            GroupMember.group_id
+            == DepositAccess.group_id,
+        )
+        .where(
+            DepositAccess.deposit_id == deposit_id,
+            GroupMember.user_id == current_user.id,
+            DepositAccess.access_level
+            == DepositAccessLevel.ADMIN,
+        )
+    )
+
+    if has_admin_access is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Administrator access to this deposit "
+                "is required"
+            ),
+        )
+
+    db.delete(access)
+    db.commit()
+
+@router.get(
+    "/{deposit_id}/access-groups",
+    response_model=list[DepositAccessResponse],
+)
+def list_deposit_access(
+    deposit_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+) -> list[DepositAccess]:
+
+    deposit_exists = db.scalar(
+        select(Deposit.id).where(
+            Deposit.id == deposit_id,
+        )
+    )
+
+    if deposit_exists is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Deposit not found",
+        )
+
+    has_admin_access = db.scalar(
+        select(DepositAccess.id)
+        .join(
+            GroupMember,
+            GroupMember.group_id
+            == DepositAccess.group_id,
+        )
+        .where(
+            DepositAccess.deposit_id == deposit_id,
+            GroupMember.user_id == current_user.id,
+            DepositAccess.access_level
+            == DepositAccessLevel.ADMIN,
+        )
+    )
+
+    if has_admin_access is None and \
+          not can_administer_deposit(
+            db = db, 
+            user = current_user, 
+            deposit_id=deposit_id
+        ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Administrator access to this deposit "
+                "is required"
+            ),
+        )
+
+    return db.scalars(
+        select(DepositAccess)
+        .where(
+            DepositAccess.deposit_id == deposit_id,
+        )
+        .order_by(
+            DepositAccess.created_at,
+        )
+    ).all()

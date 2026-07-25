@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from app.api.auth import router as auth_router
 from app.api.users import router as users_router
 from app.api.deposits import router as deposits_router
-
+from app.api.access_group import router as access_groups_router
 
 app = FastAPI(
     title="GeoArchive API",
@@ -26,5 +26,11 @@ app.include_router(
     deposits_router,
     prefix="/api/deposits",
     tags=["Deposits"],
+)
+
+app.include_router(
+    access_groups_router,
+    prefix="/api/access-groups",
+    tags=["Access groups"],
 )
 

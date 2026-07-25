@@ -157,3 +157,31 @@ def require_deposit_edit_access(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Edit access required",
         )
+
+
+def require_global_admin(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+) -> User:
+
+    statement = (
+        select(Role.id)
+        .join(User.roles)
+        .where(
+            User.id == current_user.id,
+            Role.name == "administrator",
+        )
+    )
+
+    is_admin = db.scalar(statement) is not None
+
+    if not is_admin:
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator access required",
+        )
+
+    return current_user
