@@ -1,0 +1,78 @@
+services:
+
+  mysql:
+    image: mysql:8.4
+
+    container_name: geological-mysql
+
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: 1#$dhHJdc
+      MYSQL_DATABASE: geoarchive
+      MYSQL_USER: geoarchive
+      MYSQL_PASSWORD: 1#$dhHJdc
+
+    ports:
+      - "3306:3306"
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "root",
+          "-proot_password"
+        ]
+
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+
+    container_name: geological-backend
+
+    restart: unless-stopped
+
+    environment:
+      DATABASE_URL: mysql+pymysql://geoarchive:1#$dhHJdc@mysql:3306/geoarchive
+
+    ports:
+      - "8000:8000"
+
+    volumes:
+      - ./backend:/app
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+
+
+volumes:
+
+  mysql_data:
