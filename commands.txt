@@ -1,0 +1,9 @@
+Initialize the migration:
+
+docker compose run --rm backend \    
+    alembic revision --autogenerate \
+    -m "initial schema"
+
+Apply migration:
+
+
