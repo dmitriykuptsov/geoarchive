@@ -14,6 +14,10 @@ from sqlalchemy import (
     func
 )
 
+from app.services.search_snippet import (
+    create_snippet,
+)
+
 import math
 
 from sqlalchemy.sql.functions import GenericFunction
@@ -245,19 +249,20 @@ def search_documents(
         DocumentSearchResult(
             document_id=row.document_id,
 
-            document_name=(
-                row.document_name
-            ),
+            document_name=row.document_name,
 
             page_id=row.page_id,
 
-            page_number=(
-                row.page_number
-            ),
+            page_number=row.page_number,
 
             chunk_id=row.chunk_id,
 
             content=row.content,
+
+            snippet=create_snippet(
+                content=row.content,
+                query=query,
+            ),
 
             relevance=float(
                 row.relevance,

@@ -17,6 +17,8 @@ class DocumentSearchResult(
 
     content: str
 
+    snippet: str
+
     relevance: float
 
 
