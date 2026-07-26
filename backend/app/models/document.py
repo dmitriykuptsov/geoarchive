@@ -7,7 +7,8 @@ from sqlalchemy import (
     ForeignKey,
     String,
     Text,
-    DateTime
+    DateTime,
+    Index,
 )
 
 from sqlalchemy.orm import (
@@ -191,6 +192,14 @@ class DocumentPage(Base):
 class DocumentChunk(Base):
 
     __tablename__ = "document_chunks"
+
+    __table_args__ = (
+        Index(
+            "ft_document_chunks_content",
+            "content",
+            mysql_prefix="FULLTEXT",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         BIGINT(unsigned=True),

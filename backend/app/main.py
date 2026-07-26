@@ -5,6 +5,7 @@ from app.api.users import router as users_router
 from app.api.deposits import router as deposits_router
 from app.api.access_group import router as access_groups_router
 from app.api.documents import router as documents_router
+from app.api.search import router as search_router
 app = FastAPI(
     title="GeoArchive API",
 )
@@ -38,4 +39,10 @@ app.include_router(
     documents_router,
     prefix="/api/documents",
     tags=["Documents"],
+)
+
+app.include_router(
+    search_router,
+    prefix="/api/search",
+    tags=["Search documents"],
 )
