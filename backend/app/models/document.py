@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING
+from datetime import datetime
 
 from sqlalchemy import (
     BigInteger,
@@ -6,6 +7,7 @@ from sqlalchemy import (
     ForeignKey,
     String,
     Text,
+    DateTime
 )
 
 from sqlalchemy.orm import (
@@ -105,6 +107,21 @@ class Document(
     checksum: Mapped[str] = mapped_column(
         String(64),
         nullable=False,
+    )
+
+    processing_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    processing_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    processing_error: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
     )
 
     deposit: Mapped["Deposit"] = relationship(

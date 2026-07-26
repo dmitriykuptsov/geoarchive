@@ -7,6 +7,7 @@ from app.models.enums import (
     DocumentType,
 )
 
+from app.models.document import DocumentStatus
 
 class DocumentResponse(BaseModel):
 
@@ -29,3 +30,22 @@ class DocumentResponse(BaseModel):
     model_config = ConfigDict(
         from_attributes=True,
     )
+
+
+class DocumentProcessingStatusResponse(
+    BaseModel,
+):
+
+    document_id: int
+
+    status: DocumentStatus
+
+    processing_started_at: datetime | None
+
+    processing_completed_at: datetime | None
+
+    processing_error: str | None
+
+    page_count: int
+
+    chunk_count: int

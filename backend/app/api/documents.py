@@ -14,7 +14,7 @@ from fastapi import (
 
 from enum import Enum as PyEnum
 
-from sqlalchemy import select
+from sqlalchemy import select, delete, func
 from sqlalchemy.orm import Session
 
 from pathlib import Path
@@ -25,6 +25,10 @@ from app.core.dependencies import (
     get_db,
     require_password_changed,
     require_global_admin    
+)
+
+from app.worker.tasks.documents import (
+    process_document,
 )
 
 from app.services.document_storage import DocumentStorage, document_storage
@@ -41,7 +45,7 @@ from app.models.deposit_access import (
     DepositAccessLevel
 )
 
-from app.models.document import Document, DocumentStatus, DocumentType
+from app.models.document import Document, DocumentStatus, DocumentType, DocumentChunk, DocumentPage
 
 from app.services.deposit_access import (
     can_view_deposit,
@@ -50,7 +54,7 @@ from app.services.deposit_access import (
     is_global_admin
 )
 
-from app.schemas.document import DocumentResponse
+from app.schemas.document import DocumentResponse, DocumentProcessingStatusResponse
 
 router = APIRouter()
 
@@ -225,3 +229,234 @@ def delete_document(
     )
 
     db.commit()
+
+@router.post(
+    "/{document_id}/process",
+)
+def process_document_endpoint(
+    document_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+    document = db.scalar(
+        select(Document).where(
+            Document.id == document_id,
+        )
+    )
+
+    if document is None:
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
+    if document.status in (
+        DocumentStatus.QUEUED,
+        DocumentStatus.PROCESSING,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Document is already being processed"
+            ),
+        )
+
+    if document.status in (
+        DocumentStatus.PROCESSED
+    ):
+        db.execute(
+            delete(DocumentChunk).where(
+                DocumentChunk.document_id
+                == document.id,
+            )
+        )
+
+        db.execute(
+            delete(DocumentPage).where(
+                DocumentPage.document_id
+                == document.id,
+            )
+        )
+
+    has_edit_access = db.scalar(
+        select(DepositAccess.id)
+        .join(
+            GroupMember,
+            GroupMember.group_id
+            == DepositAccess.group_id,
+        )
+        .where(
+            DepositAccess.deposit_id
+            == document.deposit_id,
+
+            GroupMember.user_id
+            == current_user.id,
+
+            DepositAccess.access_level.in_(
+                [
+                    DepositAccessLevel.EDIT,
+                    DepositAccessLevel.ADMIN,
+                ]
+            ),
+        )
+    )
+
+    if has_edit_access is None and \
+        not is_global_admin(
+            db=db, 
+            user=current_user
+        ):
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "EDIT or ADMIN access "
+                "is required"
+            ),
+        )
+
+    document.status = (
+        DocumentStatus.QUEUED
+    )
+
+    document.processing_started_at = None
+
+    document.processing_completed_at = None
+
+    document.processing_error = None
+
+    db.commit()
+
+    task = process_document.delay(
+        document.id,
+    )
+
+    return {
+        "task_id": task.id,
+        "document_id": document.id,
+        "status": "queued",
+    }
+
+@router.get(
+    "/{document_id}/processing-status",
+    response_model=(
+        DocumentProcessingStatusResponse
+    ),
+)
+def get_processing_status(
+    document_id: int,
+
+    db: Session = Depends(
+        get_db,
+    ),
+
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+
+    document = db.scalar(
+        select(
+            Document,
+        ).where(
+            Document.id
+            == document_id,
+        )
+    )
+
+    if document is None:
+
+        raise HTTPException(
+            status_code=(
+                status.HTTP_404_NOT_FOUND
+            ),
+
+            detail=(
+                "Document not found"
+            ),
+        )
+
+    has_access = db.scalar(
+        select(
+            DepositAccess.id,
+        )
+        .join(
+            GroupMember,
+
+            GroupMember.group_id
+            == DepositAccess.group_id,
+        )
+        .where(
+
+            DepositAccess.deposit_id
+            == document.deposit_id,
+
+            GroupMember.user_id
+            == current_user.id,
+        )
+    )
+
+    if has_access is None and not is_global_admin(
+        db=db, 
+        user=current_user
+    ):
+        
+        raise HTTPException(
+            status_code=(
+                status.HTTP_403_FORBIDDEN
+            ),
+
+            detail=(
+                "Access to this deposit "
+                "is required"
+            ),
+        )
+
+    page_count = db.scalar(
+        select(
+            func.count(
+                DocumentPage.id,
+            ),
+        ).where(
+            DocumentPage.document_id
+            == document.id,
+        )
+    ) or 0
+
+    chunk_count = db.scalar(
+        select(
+            func.count(
+                DocumentChunk.id,
+            ),
+        ).where(
+            DocumentChunk.document_id
+            == document.id,
+        )
+    ) or 0
+
+    return (
+        DocumentProcessingStatusResponse(
+            document_id=document.id,
+
+            status=document.status,
+
+            processing_started_at=(
+                document.processing_started_at
+            ),
+
+            processing_completed_at=(
+                document.processing_completed_at
+            ),
+
+            processing_error=(
+                document.processing_error
+            ),
+
+            page_count=page_count,
+
+            chunk_count=chunk_count,
+        )
+    )

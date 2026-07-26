@@ -8,3 +8,6 @@ pydantic[email]
 pwdlib[argon2]
 PyJWT
 python-multipart
+celery
+redis
+PyMuPDF

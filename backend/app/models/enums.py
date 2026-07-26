@@ -15,6 +15,7 @@ class DocumentType(str, Enum):
 class DocumentStatus(str, Enum):
 
     UPLOADED = "uploaded"
+    QUEUED = "queued"
     PROCESSING = "processing"
     PROCESSED = "processed"
     FAILED = "failed"
