@@ -14,6 +14,10 @@ class Settings(BaseSettings):
 
     database_url: str = Field(validation_alias="DATABASE_URL")
 
+    document_storage_path: str = (
+        "./storage"
+    )
+
     class Config:
 
         env_file = ".env"

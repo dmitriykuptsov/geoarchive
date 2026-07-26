@@ -59,6 +59,7 @@ services:
 
     volumes:
       - ./backend:/app
+      - ./storage:/app/storage
 
     depends_on:
       mysql:

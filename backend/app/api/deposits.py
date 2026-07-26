@@ -3,6 +3,9 @@ from fastapi import (
     Depends,
     HTTPException,
     status,
+    File,
+    Form,
+    UploadFile,
 )
 
 from enum import Enum as PyEnum
@@ -10,12 +13,17 @@ from enum import Enum as PyEnum
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from pathlib import Path
+from uuid import uuid4
+
 from app.core.dependencies import (
     get_current_user,
     get_db,
     require_password_changed,
-    require_global_admin
+    require_global_admin    
 )
+
+from app.services.document_storage import DocumentStorage, document_storage
 
 from app.models.deposit import Deposit
 from app.models.user import User
@@ -29,10 +37,13 @@ from app.models.deposit_access import (
     DepositAccessLevel
 )
 
+from app.models.document import Document, DocumentStatus, DocumentType
+
 from app.services.deposit_access import (
     can_view_deposit,
     can_edit_deposit,
-    can_administer_deposit
+    can_administer_deposit,
+    is_global_admin
 )
 
 from app.schemas.deposit import (
@@ -45,6 +56,8 @@ from app.schemas.deposit_access import (
     DepositAccessCreateRequest,
     DepositAccessResponse,
 )
+
+from app.schemas.document import DocumentResponse
 
 router = APIRouter()
 
@@ -285,7 +298,11 @@ def grant_deposit_access(
         )
     )
 
-    if has_admin_access is None:
+    if has_admin_access is None and \
+        not is_global_admin(
+            db = db, 
+            user = current_user
+        ):
 
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -381,7 +398,11 @@ def revoke_deposit_access(
         )
     )
 
-    if has_admin_access is None:
+    if has_admin_access is None and \
+        not is_global_admin(
+            db = db, 
+            user = current_user
+        ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
@@ -433,10 +454,9 @@ def list_deposit_access(
     )
 
     if has_admin_access is None and \
-          not can_administer_deposit(
+          not is_global_admin(
             db = db, 
-            user = current_user, 
-            deposit_id=deposit_id
+            user = current_user
         ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -455,3 +475,182 @@ def list_deposit_access(
             DepositAccess.created_at,
         )
     ).all()
+
+@router.post(
+    "/{deposit_id}/documents",
+    response_model=DocumentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_document(
+    deposit_id: int,
+
+    title: str = Form(...),
+
+    document_type: DocumentType = Form(...),
+
+    file: UploadFile = File(...),
+
+    db: Session = Depends(
+        get_db,
+    ),
+
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+) -> Document:
+
+    deposit = db.scalar(
+        select(
+            Deposit,
+        ).where(
+            Deposit.id
+            == deposit_id,
+        )
+    )
+
+    if deposit is None:
+
+        raise HTTPException(
+            status_code=(
+                status.HTTP_404_NOT_FOUND
+            ),
+
+            detail=(
+                "Deposit not found"
+            ),
+        )
+
+    has_edit_access = db.scalar(
+        select(
+            DepositAccess.id,
+        )
+        .join(
+            GroupMember,
+
+            GroupMember.group_id
+            == DepositAccess.group_id,
+        )
+        .where(
+
+            DepositAccess.deposit_id
+            == deposit_id,
+
+            GroupMember.user_id
+            == current_user.id,
+
+            DepositAccess.access_level.in_(
+                [
+                    DepositAccessLevel.EDIT,
+                    DepositAccessLevel.ADMIN,
+                ],
+            ),
+        )
+    )
+
+    if has_edit_access is None and\
+        not is_global_admin(
+            db = db, 
+            user = current_user
+        ):
+
+        raise HTTPException(
+            status_code=(
+                status.HTTP_403_FORBIDDEN
+            ),
+
+            detail=(
+                "EDIT or ADMIN access "
+                "is required"
+            ),
+        )
+
+    if file.content_type != (
+        "application/pdf"
+    ):
+
+        raise HTTPException(
+            status_code=(
+                status.HTTP_400_BAD_REQUEST
+            ),
+
+            detail=(
+                "Only PDF files are supported"
+            ),
+        )
+
+    if not file.filename:
+
+        raise HTTPException(
+            status_code=(
+                status.HTTP_400_BAD_REQUEST
+            ),
+
+            detail=(
+                "Filename is required"
+            ),
+        )
+
+    original_filename = (
+        file.filename
+    )
+
+    storage_filename = (
+        f"{uuid4()}.pdf"
+    )
+
+    (
+        storage_path,
+
+        file_size,
+
+        checksum,
+
+    ) = await document_storage.save(
+
+        file=file,
+
+        deposit_id=deposit_id,
+
+        storage_filename=(
+            storage_filename
+        ),
+    )
+
+    document = Document(
+
+        deposit_id=deposit_id,
+
+        uploaded_by=current_user.id,
+
+        title=title,
+
+        filename=original_filename,
+
+        mime_type=(
+            file.content_type
+        ),
+
+        file_size=file_size,
+
+        storage_path=storage_path,
+
+        checksum=checksum,
+
+        document_type=document_type,
+
+        status=(
+            DocumentStatus.UPLOADED
+        ),
+    )
+
+    db.add(
+        document,
+    )
+
+    db.commit()
+
+    db.refresh(
+        document,
+    )
+
+    return document

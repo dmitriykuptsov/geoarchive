@@ -102,11 +102,18 @@ class Document(
         default=DocumentStatus.UPLOADED,
     )
 
+    checksum: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+
     deposit: Mapped["Deposit"] = relationship(
         back_populates="documents",
     )
 
-    uploader: Mapped["User"] = relationship()
+    uploader: Mapped["User"] = relationship(
+        back_populates="uploaded_documents",
+    )
 
     pages: Mapped[list["DocumentPage"]] = relationship(
         back_populates="document",

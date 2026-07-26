@@ -81,3 +81,7 @@ class User(
         back_populates="user",
         cascade="all, delete-orphan",
     )
+
+    uploaded_documents: Mapped[list["Document"]] = relationship(
+        back_populates="uploader",
+    )

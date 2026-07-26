@@ -7,3 +7,5 @@ docker compose run --rm backend \
 Apply migration:
 
 
+docker compose run --rm backend alembic upgrade head
+
