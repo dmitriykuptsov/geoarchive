@@ -6,6 +6,7 @@ from sqlalchemy import (
     ForeignKey,
     String,
     Text,
+    UniqueConstraint,
 )
 
 from sqlalchemy.orm import (
@@ -41,6 +42,14 @@ class Map(
 ):
 
     __tablename__ = "maps"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "deposit_id",
+            "name",
+            name="uq_map_deposit_name",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         BIGINT(unsigned=True),

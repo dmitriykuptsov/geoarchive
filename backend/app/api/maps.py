@@ -1,0 +1,382 @@
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+)
+
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+
+from sqlalchemy.exc import IntegrityError
+
+from app.models.deposit import (
+    Deposit,
+)
+
+from app.models.map import (
+    Map,
+)
+
+from app.models.user import (
+    User,
+)
+
+from app.schemas.map import (
+    MapCreate,
+    MapResponse,
+    MapUpdate,
+)
+
+from app.core.dependencies import (
+    get_db,
+    require_password_changed,
+)
+
+from app.services.deposit_access import (
+    can_view_deposit,
+    can_edit_deposit,
+    can_administer_deposit,
+    is_global_admin
+)
+
+router = APIRouter()
+
+@router.post(
+    "/deposits/{deposit_id}",
+    response_model=MapResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_map(
+    deposit_id: int,
+
+    data: MapCreate,
+
+    db: Session = Depends(
+        get_db,
+    ),
+
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+    deposit = db.get(
+        Deposit,
+        deposit_id,
+    )
+
+    if deposit is None:
+
+        raise HTTPException(
+            status_code=404,
+            detail="Deposit not found",
+        )
+
+    if not can_edit_deposit(
+            db,
+            current_user,
+            deposit,
+        ) and not is_global_admin(
+             db=db, 
+             user=current_user
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Edit access required"
+                ),
+            )
+
+    geological_map = Map(
+        deposit_id=deposit_id,
+
+        name=data.name,
+
+        description=data.description,
+
+        map_type=data.map_type,
+
+        coordinate_system=(
+            data.coordinate_system
+        ),
+
+        created_by=current_user.id,
+    )
+
+    try:
+        db.add(
+            geological_map,
+        )
+
+        db.commit()
+
+    except IntegrityError as exc:
+
+        db.rollback()
+
+        if (
+            "uq_map_deposit_name"
+            in str(exc.orig)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "A map with this name "
+                    "already exists in this deposit."
+                ),
+            )
+
+        raise
+
+    return geological_map
+
+
+@router.get(
+    "/deposits/{deposit_id}",
+    response_model=list[MapResponse],
+)
+def get_maps(
+    deposit_id: int,
+
+    db: Session = Depends(
+        get_db,
+    ),
+
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+    deposit = db.get(
+        Deposit,
+        deposit_id,
+    )
+
+    if deposit is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Deposit not found",
+        )
+
+    if not (
+        is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        or can_view_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="View access required",
+        )
+
+    maps = db.scalars(
+        select(Map)
+        .where(
+            Map.deposit_id == deposit_id,
+        )
+        .order_by(
+            Map.id,
+        )
+    ).all()
+
+    return maps
+
+@router.get(
+    "/{map_id}",
+    response_model=MapResponse,
+)
+def get_map(
+    map_id: int,
+
+    db: Session = Depends(
+        get_db,
+    ),
+
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+    geological_map = db.get(
+        Map,
+        map_id,
+    )
+
+    if geological_map is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Map not found",
+        )
+
+    deposit = db.get(
+        Deposit,
+        geological_map.deposit_id,
+    )
+
+    if (
+        not is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        and not can_view_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="View access required",
+        )
+
+    return geological_map
+
+
+@router.patch(
+    "/{map_id}",
+    response_model=MapResponse,
+)
+def update_map(
+    map_id: int,
+
+    data: MapUpdate,
+
+    db: Session = Depends(
+        get_db,
+    ),
+
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+    geological_map = db.get(
+        Map,
+        map_id,
+    )
+
+    if geological_map is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Map not found",
+        )
+
+    deposit = db.get(
+        Deposit,
+        geological_map.deposit_id,
+    )
+
+    if (
+        not is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        and not can_edit_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Edit access required",
+        )
+
+    update_data = data.model_dump(
+        exclude_unset=True,
+    )
+
+    for field, value in update_data.items():
+
+        setattr(
+            geological_map,
+            field,
+            value,
+        )
+
+    try:
+
+        db.commit()
+
+    except IntegrityError as exc:
+
+        db.rollback()
+
+        if (
+            "uq_map_deposit_name"
+            in str(exc.orig)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "A map with this name "
+                    "already exists in this deposit."
+                ),
+            )
+
+        raise    
+    
+
+    db.refresh(
+        geological_map,
+    )
+
+    return geological_map
+
+
+@router.delete(
+    "/{map_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_map(
+    map_id: int,
+
+    db: Session = Depends(
+        get_db,
+    ),
+
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+    geological_map = db.get(
+        Map,
+        map_id,
+    )
+
+    if geological_map is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Map not found",
+        )
+
+    deposit = db.get(
+        Deposit,
+        geological_map.deposit_id,
+    )
+
+    if (
+        not is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        and not can_edit_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Edit access required",
+        )
+
+    db.delete(
+        geological_map,
+    )
+
+    db.commit()
+
+    return None
