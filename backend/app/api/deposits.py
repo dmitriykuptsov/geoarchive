@@ -139,6 +139,8 @@ def create_deposit(
         status=request.status.value,
         visibility=request.visibility.value,
         created_by=current_user.id,
+        latitude=request.latitude,
+        longitude=request.longitude
     )
 
     db.add(deposit)

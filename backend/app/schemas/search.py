@@ -19,6 +19,8 @@ class DocumentSearchResult(
 
     snippet: str
 
+    highlighted_snippet: str
+
     relevance: float
 
 

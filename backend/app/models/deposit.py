@@ -7,7 +7,9 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     ForeignKey,
+    Numeric
 )
+
 
 from sqlalchemy.orm import (
     Mapped,
@@ -22,6 +24,8 @@ from app.models.base import (
 )
 
 from sqlalchemy.dialects.mysql import BIGINT
+
+from decimal import Decimal
 
 class Deposit(
     UUIDMixin,
@@ -83,6 +87,22 @@ class Deposit(
         ),
         nullable=False,
         default="private",
+    )
+
+    latitude: Mapped[Decimal | None] = mapped_column(
+        Numeric(
+            10,
+            7,
+        ),
+        nullable=True,
+    )
+
+    longitude: Mapped[Decimal | None] = mapped_column(
+        Numeric(
+            10,
+            7,
+        ),
+        nullable=True,
     )
 
     created_by: Mapped[int] = mapped_column(

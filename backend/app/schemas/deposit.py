@@ -1,5 +1,7 @@
 from enum import Enum as PyEnum
 
+from decimal import Decimal
+
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -48,6 +50,18 @@ class DepositCreateRequest(BaseModel):
         DepositVisibility.PRIVATE
     )
 
+    latitude: Decimal | None = Field(
+        default=None,
+        ge=Decimal("-90"),
+        le=Decimal("90"),
+    )
+
+    longitude: Decimal | None = Field(
+        default=None,
+        ge=Decimal("-180"),
+        le=Decimal("180"),
+    )
+
 
 class DepositUpdateRequest(BaseModel):
 
@@ -73,6 +87,18 @@ class DepositUpdateRequest(BaseModel):
 
     visibility: DepositVisibility | None = None
 
+    latitude: Decimal | None = Field(
+        default=None,
+        ge=Decimal("-90"),
+        le=Decimal("90"),
+    )
+
+    longitude: Decimal | None = Field(
+        default=None,
+        ge=Decimal("-180"),
+        le=Decimal("180"),
+    )
+
 
 class DepositResponse(BaseModel):
 
@@ -81,6 +107,8 @@ class DepositResponse(BaseModel):
     description: str | None
     country: str | None
     region: str | None
+    latitude: Decimal | None
+    longitude: Decimal | None
     status: DepositStatus
     visibility: DepositVisibility
     created_by: int

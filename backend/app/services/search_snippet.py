@@ -1,3 +1,6 @@
+import re
+
+
 def create_snippet(
     content: str,
     query: str,
@@ -12,7 +15,10 @@ def create_snippet(
     )
 
     if match_position == -1:
-        return content[:context_size * 2]
+
+        return content[
+            :context_size * 2
+        ]
 
     start = max(
         0,
@@ -31,9 +37,39 @@ def create_snippet(
     ].strip()
 
     if start > 0:
+
         snippet = "..." + snippet
 
     if end < len(content):
+
         snippet = snippet + "..."
 
     return snippet
+
+
+def highlight_text(
+    text: str,
+    query: str,
+) -> str:
+
+    if not query.strip():
+
+        return text
+
+    pattern = re.compile(
+        re.escape(
+            query,
+        ),
+
+        re.IGNORECASE,
+    )
+
+    return pattern.sub(
+        lambda match: (
+            "<mark>"
+            + match.group(0)
+            + "</mark>"
+        ),
+
+        text,
+    )

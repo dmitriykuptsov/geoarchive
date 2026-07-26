@@ -16,6 +16,7 @@ from sqlalchemy import (
 
 from app.services.search_snippet import (
     create_snippet,
+    highlight_text,
 )
 
 import math
@@ -245,32 +246,49 @@ def search_documents(
         statement,
     ).all()
 
-    results = [
-        DocumentSearchResult(
-            document_id=row.document_id,
+    results = []
 
-            document_name=row.document_name,
+    for row in rows:
 
-            page_id=row.page_id,
-
-            page_number=row.page_number,
-
-            chunk_id=row.chunk_id,
-
+        snippet = create_snippet(
             content=row.content,
-
-            snippet=create_snippet(
-                content=row.content,
-                query=query,
-            ),
-
-            relevance=float(
-                row.relevance,
-            ),
+            query=query,
         )
 
-        for row in rows
-    ]
+        highlighted_snippet = highlight_text(
+            text=snippet,
+            query=query,
+        )
+
+        results.append(
+            DocumentSearchResult(
+                document_id=row.document_id,
+
+                document_name=(
+                    row.document_name
+                ),
+
+                page_id=row.page_id,
+
+                page_number=(
+                    row.page_number
+                ),
+
+                chunk_id=row.chunk_id,
+
+                content=row.content,
+
+                snippet=snippet,
+
+                highlighted_snippet=(
+                    highlighted_snippet
+                ),
+
+                relevance=float(
+                    row.relevance,
+                ),
+            )
+        )
 
     access_condition = exists(
         select(1)
