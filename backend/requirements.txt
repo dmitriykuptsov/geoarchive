@@ -11,3 +11,5 @@ python-multipart
 celery
 redis
 PyMuPDF
+Pillow
+

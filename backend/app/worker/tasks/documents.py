@@ -7,7 +7,7 @@ from app.core.database import SessionLocal
 from app.models.document import Document, DocumentStatus, DocumentPage, DocumentChunk
 from app.services.pdf_processor import PDFProcessor
 from app.services.text_chunker import TextChunker
-from app.services.document_storage import DocumentStorage, document_storage
+from app.services.storage import FileStorage, file_storage
 from app.models.enums import ExtractionMethod
 
 @celery_app.task(
@@ -51,7 +51,7 @@ def process_document(
         processor = PDFProcessor()
 
         file_path = (
-            document_storage.base_path
+            file_storage.base_path
             / document.storage_path
         )
 

@@ -31,7 +31,7 @@ from app.worker.tasks.documents import (
     process_document,
 )
 
-from app.services.document_storage import DocumentStorage, document_storage
+from app.services.storage import FileStorage, file_storage
 
 from app.models.deposit import Deposit
 from app.models.user import User
@@ -132,7 +132,7 @@ def download_document(
         )
 
     file_path = (
-        document_storage.base_path
+        file_storage.base_path
         / document.storage_path
     )
 
@@ -220,7 +220,7 @@ def delete_document(
 
     storage_path = document.storage_path
 
-    document_storage.delete(
+    file_storage.delete(
         storage_path,
     )
 

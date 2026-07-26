@@ -23,7 +23,7 @@ from app.core.dependencies import (
     require_global_admin    
 )
 
-from app.services.document_storage import DocumentStorage, document_storage
+from app.services.storage import FileStorage, file_storage
 
 from app.models.deposit import Deposit
 from app.models.user import User
@@ -607,11 +607,13 @@ async def upload_document(
 
         checksum,
 
-    ) = await document_storage.save(
+    ) = await file_storage.save(
 
         file=file,
 
         deposit_id=deposit_id,
+
+        category="documents",
 
         storage_filename=(
             storage_filename

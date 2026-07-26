@@ -6,7 +6,7 @@ import hashlib
 
 from fastapi import UploadFile
 
-class DocumentStorage:
+class FileStorage:
 
     def __init__(
         self,
@@ -21,13 +21,14 @@ class DocumentStorage:
     async def save(
         self,
         file: UploadFile,
+        category: str,
         deposit_id: int,
         storage_filename: str,
     ) -> tuple[str, int, str]:
 
         deposit_directory = (
             self.base_path
-            / "documents"
+            / category
             / str(deposit_id)
         )
 
@@ -85,6 +86,6 @@ class DocumentStorage:
 
             file_path.unlink()
 
-document_storage = DocumentStorage(
+file_storage = FileStorage(
     base_path=settings.document_storage_path,
 )
