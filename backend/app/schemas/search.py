@@ -26,6 +26,14 @@ class DocumentSearchResponse(
 
     query: str
 
+    page: int
+
+    page_size: int
+
+    total: int
+
+    total_pages: int
+
     results: list[
         DocumentSearchResult
     ]

@@ -9,8 +9,12 @@ from sqlalchemy import (
     select,
     text,
     literal_column,
-    Float
+    Float,
+    exists,
+    func
 )
+
+import math
 
 from sqlalchemy.sql.functions import GenericFunction
 from sqlalchemy.ext.compiler import compiles
@@ -102,6 +106,17 @@ def search_documents(
         max_length=500,
     ),
 
+    page: int = Query(
+        default=1,
+        ge=1,
+    ),
+
+    page_size: int = Query(
+        default=20,
+        ge=1,
+        le=100,
+    ),
+
     db: Session = Depends(
         get_db,
     ),
@@ -111,6 +126,10 @@ def search_documents(
     ),
 ):
     query = q.strip()
+
+    offset = (
+        page - 1
+    ) * page_size
 
     if not query:
 
@@ -209,8 +228,12 @@ def search_documents(
             relevance_expression.desc(),
         )
 
+        .offset(
+            offset,
+        )
+
         .limit(
-            50,
+            page_size,
         )
     )
 
@@ -244,7 +267,83 @@ def search_documents(
         for row in rows
     ]
 
+    access_condition = exists(
+        select(1)
+        .select_from(
+            DepositAccess,
+        )
+        .join(
+            GroupMember,
+            GroupMember.group_id
+            == DepositAccess.group_id,
+        )
+        .where(
+            DepositAccess.deposit_id
+            == Document.deposit_id,
+
+            GroupMember.user_id
+            == current_user.id,
+        )
+    )
+
+    statement = statement.where(
+        access_condition,
+    )
+
+    count_statement = (
+        select(
+            func.count(
+                DocumentChunk.id,
+            ),
+        )
+
+        .select_from(
+            DocumentChunk,
+        )
+
+        .join(
+            DocumentPage,
+            DocumentPage.id
+            == DocumentChunk.page_id,
+        )
+
+        .join(
+            Document,
+            Document.id
+            == DocumentPage.document_id,
+        )
+
+        .where(
+            relevance_expression,
+        )
+    )
+
+    if not is_global_admin(db=db, user=current_user):
+
+        count_statement = (
+            count_statement.where(
+                access_condition,
+            )
+        )
+
+    total = db.scalar(
+        count_statement,
+    ) or 0
+
+    total_pages = math.ceil(
+        total / page_size,
+    )
+
     return DocumentSearchResponse(
         query=q,
+
+        page=page,
+
+        page_size=page_size,
+
+        total=total,
+
+        total_pages=total_pages,
+
         results=results,
     )
