@@ -665,3 +665,62 @@ def get_map_file(
             f"{Path(map_file.storage_path).suffix}"
         ),
     )
+
+@router.get(
+    "/{map_id}/files",
+    response_model=list[MapFileResponse],
+)
+def list_map_files(
+    map_id: int,
+
+    db: Session = Depends(
+        get_db,
+    ),
+
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+    geological_map = db.get(
+        Map,
+        map_id,
+    )
+
+    if geological_map is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Map not found",
+        )
+
+    deposit = db.get(
+        Deposit,
+        geological_map.deposit_id,
+    )
+
+    if (
+        not is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        and not can_view_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="View access required",
+        )
+
+    map_files = db.scalars(
+        select(MapFile)
+        .where(
+            MapFile.map_id == map_id,
+        )
+        .order_by(
+            MapFile.id,
+        )
+    ).all()
+
+    return map_files
