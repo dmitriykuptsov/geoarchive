@@ -7,13 +7,9 @@ def main() -> None:
 
     if len(sys.argv) != 2:
 
-        print(
-            "Usage:"
-        )
+        print("Usage:")
 
-        print(
-            "  python -m app.cli bootstrap"
-        )
+        print("  python -m app.cli bootstrap")
 
         sys.exit(1)
 
@@ -25,9 +21,7 @@ def main() -> None:
 
     else:
 
-        print(
-            f"Unknown command: {command}"
-        )
+        print(f"Unknown command: {command}")
 
         sys.exit(1)
 

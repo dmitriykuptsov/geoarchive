@@ -32,14 +32,9 @@ class PDFProcessor:
 
                 pages.append(
                     {
-                        "page_number": (
-                            page_index + 1
-                        ),
-
+                        "page_number": (page_index + 1),
                         "width": rect.width,
-
                         "height": rect.height,
-
                         "text": text,
                     }
                 )

@@ -31,14 +31,9 @@ class TextChunker:
 
         while start < text_length:
 
-            end = (
-                start
-                + self.chunk_size
-            )
+            end = start + self.chunk_size
 
-            chunk = text[
-                start:end
-            ].strip()
+            chunk = text[start:end].strip()
 
             if chunk:
 
@@ -50,9 +45,6 @@ class TextChunker:
 
                 break
 
-            start = (
-                end
-                - self.overlap
-            )
+            start = end - self.overlap
 
         return chunks

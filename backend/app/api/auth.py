@@ -22,9 +22,9 @@ from app.schemas.auth import (
 )
 
 from app.core.dependencies import (
-    get_current_user, 
+    get_current_user,
     require_admin,
-    require_password_changed
+    require_password_changed,
 )
 
 from app.models.user import User
@@ -41,11 +41,7 @@ def login(
     db: Session = Depends(get_db),
 ) -> TokenResponse:
 
-    user = db.scalar(
-        select(User).where(
-            User.username == credentials.username
-        )
-    )
+    user = db.scalar(select(User).where(User.username == credentials.username))
 
     if user is None:
 
@@ -71,9 +67,7 @@ def login(
             detail="Invalid username or password",
         )
 
-    access_token = create_access_token(
-        subject=str(user.id)
-    )
+    access_token = create_access_token(subject=str(user.id))
 
     return TokenResponse(
         access_token=access_token,
@@ -82,9 +76,7 @@ def login(
 
 @router.get("/me")
 def get_me(
-    current_user: User = Depends(
-        get_current_user
-    ),
+    current_user: User = Depends(get_current_user),
 ):
     return current_user
 
@@ -98,6 +90,7 @@ def admin_test(
         "username": admin.username,
     }
 
+
 @router.post(
     "/change-password",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -105,9 +98,7 @@ def admin_test(
 def change_password(
     request: ChangePasswordRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(
-        get_current_user
-    ),
+    current_user: User = Depends(get_current_user),
 ) -> None:
 
     if not verify_password(
@@ -124,15 +115,10 @@ def change_password(
 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "New password must be different "
-                "from current password"
-            ),
+            detail=("New password must be different " "from current password"),
         )
 
-    current_user.password_hash = hash_password(
-        request.new_password
-    )
+    current_user.password_hash = hash_password(request.new_password)
 
     current_user.must_change_password = False
 

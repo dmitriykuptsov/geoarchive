@@ -143,6 +143,7 @@ class Document(
         cascade="all, delete-orphan",
     )
 
+
 class DocumentPage(Base):
 
     __tablename__ = "document_pages"
@@ -188,6 +189,7 @@ class DocumentPage(Base):
         back_populates="page",
         cascade="all, delete-orphan",
     )
+
 
 class DocumentChunk(Base):
 
@@ -255,5 +257,3 @@ class DocumentChunk(Base):
     page: Mapped["DocumentPage | None"] = relationship(
         back_populates="chunks",
     )
-
-

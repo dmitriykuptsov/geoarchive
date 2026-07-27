@@ -20,7 +20,7 @@ from app.core.dependencies import (
     get_current_user,
     get_db,
     require_password_changed,
-    require_global_admin    
+    require_global_admin,
 )
 
 from app.services.storage import FileStorage, file_storage
@@ -28,14 +28,9 @@ from app.services.storage import FileStorage, file_storage
 from app.models.deposit import Deposit
 from app.models.user import User
 from app.models.access_group import AccessGroup
-from app.models.group_member import (
-    GroupMember
-)
+from app.models.group_member import GroupMember
 
-from app.models.deposit_access import (
-    DepositAccess,
-    DepositAccessLevel
-)
+from app.models.deposit_access import DepositAccess, DepositAccessLevel
 
 from app.models.document import Document, DocumentStatus, DocumentType
 
@@ -43,7 +38,7 @@ from app.services.deposit_access import (
     can_view_deposit,
     can_edit_deposit,
     can_administer_deposit,
-    is_global_admin
+    is_global_admin,
 )
 
 from app.schemas.deposit import (
@@ -61,6 +56,7 @@ from app.schemas.document import DocumentResponse
 
 router = APIRouter()
 
+
 @router.get(
     "/{deposit_id}",
     response_model=DepositResponse,
@@ -68,16 +64,10 @@ router = APIRouter()
 def get_deposit(
     deposit_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(
-        require_password_changed
-    ),
+    current_user: User = Depends(require_password_changed),
 ) -> Deposit:
 
-    deposit = db.scalar(
-        select(Deposit).where(
-            Deposit.id == deposit_id
-        )
-    )
+    deposit = db.scalar(select(Deposit).where(Deposit.id == deposit_id))
 
     if deposit is None:
 
@@ -94,13 +84,11 @@ def get_deposit(
 
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "You do not have access "
-                "to this deposit"
-            ),
+            detail=("You do not have access " "to this deposit"),
         )
 
     return deposit
+
 
 @router.post(
     "",
@@ -110,9 +98,7 @@ def get_deposit(
 def create_deposit(
     request: DepositCreateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(
-        require_password_changed
-    ),
+    current_user: User = Depends(require_password_changed),
 ) -> Deposit:
 
     existing_deposit = db.scalar(
@@ -125,10 +111,16 @@ def create_deposit(
 
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "A deposit with this name "
-                "already exists"
-            ),
+            detail=("A deposit with this name " "already exists"),
+        )
+
+    if not is_global_admin(
+        db=db,
+        user=current_user,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Edit access required",
         )
 
     deposit = Deposit(
@@ -140,7 +132,7 @@ def create_deposit(
         visibility=request.visibility.value,
         created_by=current_user.id,
         latitude=request.latitude,
-        longitude=request.longitude
+        longitude=request.longitude,
     )
 
     db.add(deposit)
@@ -151,6 +143,7 @@ def create_deposit(
 
     return deposit
 
+
 @router.patch(
     "/{deposit_id}",
     response_model=DepositResponse,
@@ -159,45 +152,19 @@ def update_deposit(
     deposit_id: int,
     request: DepositUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(
-        require_password_changed
-    ),
+    current_user: User = Depends(require_password_changed),
 ) -> Deposit:
 
+    deposit = db.scalar(select(Deposit).where(Deposit.id == deposit_id))
 
-    deposit = db.scalar(
-            select(Deposit).where(
-                Deposit.id == deposit_id
-            )
-        )
-    
     if deposit is None:
-    
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Deposit not found",
         )
-    
-    if (
-        request.visibility is not None
-        and not can_administer_deposit(
-            db,
-            current_user,
-            deposit,
-        )
-    ):
 
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Deposit administrator access "
-                "is required to change visibility"
-            ),
-        )
-
-    
-
-    if not can_edit_deposit(
+    if request.visibility is not None and not can_administer_deposit(
         db,
         current_user,
         deposit,
@@ -205,9 +172,21 @@ def update_deposit(
 
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Edit access required"
-            ),
+            detail=("Deposit administrator access " "is required to change visibility"),
+        )
+
+    if not is_global_admin(
+        db=db,
+        user=current_user,
+    ) and not can_edit_deposit(
+        db,
+        current_user,
+        deposit,
+    ):
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=("Edit access required"),
         )
 
     if request.name is not None:
@@ -223,10 +202,7 @@ def update_deposit(
 
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "A deposit with this name "
-                    "already exists"
-                ),
+                detail=("A deposit with this name " "already exists"),
             )
 
     update_data = request.model_dump(
@@ -285,33 +261,20 @@ def grant_deposit_access(
         select(DepositAccess.id)
         .join(
             GroupMember,
-            GroupMember.group_id
-            == DepositAccess.group_id,
+            GroupMember.group_id == DepositAccess.group_id,
         )
         .where(
-            DepositAccess.deposit_id
-            == deposit_id,
-
-            GroupMember.user_id
-            == current_user.id,
-
-            DepositAccess.access_level
-            == DepositAccessLevel.ADMIN,
+            DepositAccess.deposit_id == deposit_id,
+            GroupMember.user_id == current_user.id,
+            DepositAccess.access_level == DepositAccessLevel.ADMIN,
         )
     )
 
-    if has_admin_access is None and \
-        not is_global_admin(
-            db = db, 
-            user = current_user
-        ):
+    if has_admin_access is None and not is_global_admin(db=db, user=current_user):
 
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Administrator access to this deposit "
-                "is required"
-            ),
+            detail=("Administrator access to this deposit " "is required"),
         )
 
     group = db.scalar(
@@ -331,8 +294,7 @@ def grant_deposit_access(
     existing_access = db.scalar(
         select(DepositAccess).where(
             DepositAccess.deposit_id == deposit_id,
-            DepositAccess.group_id
-            == request.group_id,
+            DepositAccess.group_id == request.group_id,
         )
     )
 
@@ -340,10 +302,7 @@ def grant_deposit_access(
 
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "This group already has access "
-                "to this deposit"
-            ),
+            detail=("This group already has access " "to this deposit"),
         )
 
     access = DepositAccess(
@@ -389,32 +348,24 @@ def revoke_deposit_access(
         select(DepositAccess.id)
         .join(
             GroupMember,
-            GroupMember.group_id
-            == DepositAccess.group_id,
+            GroupMember.group_id == DepositAccess.group_id,
         )
         .where(
             DepositAccess.deposit_id == deposit_id,
             GroupMember.user_id == current_user.id,
-            DepositAccess.access_level
-            == DepositAccessLevel.ADMIN,
+            DepositAccess.access_level == DepositAccessLevel.ADMIN,
         )
     )
 
-    if has_admin_access is None and \
-        not is_global_admin(
-            db = db, 
-            user = current_user
-        ):
+    if has_admin_access is None and not is_global_admin(db=db, user=current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Administrator access to this deposit "
-                "is required"
-            ),
+            detail=("Administrator access to this deposit " "is required"),
         )
 
     db.delete(access)
     db.commit()
+
 
 @router.get(
     "/{deposit_id}/access-groups",
@@ -444,28 +395,19 @@ def list_deposit_access(
         select(DepositAccess.id)
         .join(
             GroupMember,
-            GroupMember.group_id
-            == DepositAccess.group_id,
+            GroupMember.group_id == DepositAccess.group_id,
         )
         .where(
             DepositAccess.deposit_id == deposit_id,
             GroupMember.user_id == current_user.id,
-            DepositAccess.access_level
-            == DepositAccessLevel.ADMIN,
+            DepositAccess.access_level == DepositAccessLevel.ADMIN,
         )
     )
 
-    if has_admin_access is None and \
-          not is_global_admin(
-            db = db, 
-            user = current_user
-        ):
+    if has_admin_access is None and not is_global_admin(db=db, user=current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Administrator access to this deposit "
-                "is required"
-            ),
+            detail=("Administrator access to this deposit " "is required"),
         )
 
     return db.scalars(
@@ -478,6 +420,7 @@ def list_deposit_access(
         )
     ).all()
 
+
 @router.post(
     "/{deposit_id}/documents",
     response_model=DocumentResponse,
@@ -485,17 +428,12 @@ def list_deposit_access(
 )
 async def upload_document(
     deposit_id: int,
-
     title: str = Form(...),
-
     document_type: DocumentType = Form(...),
-
     file: UploadFile = File(...),
-
     db: Session = Depends(
         get_db,
     ),
-
     current_user: User = Depends(
         require_password_changed,
     ),
@@ -505,21 +443,15 @@ async def upload_document(
         select(
             Deposit,
         ).where(
-            Deposit.id
-            == deposit_id,
+            Deposit.id == deposit_id,
         )
     )
 
     if deposit is None:
 
         raise HTTPException(
-            status_code=(
-                status.HTTP_404_NOT_FOUND
-            ),
-
-            detail=(
-                "Deposit not found"
-            ),
+            status_code=(status.HTTP_404_NOT_FOUND),
+            detail=("Deposit not found"),
         )
 
     has_edit_access = db.scalar(
@@ -528,18 +460,11 @@ async def upload_document(
         )
         .join(
             GroupMember,
-
-            GroupMember.group_id
-            == DepositAccess.group_id,
+            GroupMember.group_id == DepositAccess.group_id,
         )
         .where(
-
-            DepositAccess.deposit_id
-            == deposit_id,
-
-            GroupMember.user_id
-            == current_user.id,
-
+            DepositAccess.deposit_id == deposit_id,
+            GroupMember.user_id == current_user.id,
             DepositAccess.access_level.in_(
                 [
                     DepositAccessLevel.EDIT,
@@ -549,102 +474,53 @@ async def upload_document(
         )
     )
 
-    if has_edit_access is None and\
-        not is_global_admin(
-            db = db, 
-            user = current_user
-        ):
+    if has_edit_access is None and not is_global_admin(db=db, user=current_user):
 
         raise HTTPException(
-            status_code=(
-                status.HTTP_403_FORBIDDEN
-            ),
-
-            detail=(
-                "EDIT or ADMIN access "
-                "is required"
-            ),
+            status_code=(status.HTTP_403_FORBIDDEN),
+            detail=("EDIT or ADMIN access " "is required"),
         )
 
-    if file.content_type != (
-        "application/pdf"
-    ):
+    if file.content_type != ("application/pdf"):
 
         raise HTTPException(
-            status_code=(
-                status.HTTP_400_BAD_REQUEST
-            ),
-
-            detail=(
-                "Only PDF files are supported"
-            ),
+            status_code=(status.HTTP_400_BAD_REQUEST),
+            detail=("Only PDF files are supported"),
         )
 
     if not file.filename:
 
         raise HTTPException(
-            status_code=(
-                status.HTTP_400_BAD_REQUEST
-            ),
-
-            detail=(
-                "Filename is required"
-            ),
+            status_code=(status.HTTP_400_BAD_REQUEST),
+            detail=("Filename is required"),
         )
 
-    original_filename = (
-        file.filename
-    )
+    original_filename = file.filename
 
-    storage_filename = (
-        f"{uuid4()}.pdf"
-    )
+    storage_filename = f"{uuid4()}.pdf"
 
     (
         storage_path,
-
         file_size,
-
         checksum,
-
     ) = await file_storage.save(
-
         file=file,
-
         deposit_id=deposit_id,
-
         category="documents",
-
-        storage_filename=(
-            storage_filename
-        ),
+        storage_filename=(storage_filename),
     )
 
     document = Document(
-
         deposit_id=deposit_id,
-
         uploaded_by=current_user.id,
-
         title=title,
-
         filename=original_filename,
-
-        mime_type=(
-            file.content_type
-        ),
-
+        mime_type=(file.content_type),
         file_size=file_size,
-
         storage_path=storage_path,
-
         checksum=checksum,
-
         document_type=document_type,
-
-        status=(
-            DocumentStatus.UPLOADED
-        ),
+        status=(DocumentStatus.UPLOADED),
     )
 
     db.add(

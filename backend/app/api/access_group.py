@@ -11,7 +11,14 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import (
     get_db,
     require_password_changed,
-    require_global_admin
+    require_global_admin,
+)
+
+from app.services.deposit_access import (
+    can_view_deposit,
+    can_edit_deposit,
+    can_administer_deposit,
+    is_global_admin,
 )
 
 from app.models.group_member import GroupMember
@@ -25,9 +32,7 @@ from app.schemas.access_group import (
     AccessGroupResponse,
 )
 
-from app.schemas.group_member import (
-    GroupMemberCreateRequest
-)
+from app.schemas.group_member import GroupMemberCreateRequest
 
 from app.schemas.deposit_access import (
     DepositAccessCreateRequest,
@@ -60,10 +65,16 @@ def create_access_group(
 
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "An access group with this name "
-                "already exists"
-            ),
+            detail=("An access group with this name " "already exists"),
+        )
+
+    if not is_global_admin(
+        db=db,
+        user=current_user,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Edit access required",
         )
 
     access_group = AccessGroup(
@@ -91,6 +102,15 @@ def add_group_member(
         require_global_admin,
     ),
 ):
+    if not is_global_admin(
+        db=db,
+        user=current_user,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Edit access required",
+        )
+
     group = db.scalar(
         select(AccessGroup).where(
             AccessGroup.id == group_id,
@@ -151,6 +171,15 @@ def list_group_members(
         require_global_admin,
     ),
 ):
+    if not is_global_admin(
+        db=db,
+        user=current_user,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Edit access required",
+        )
+
     group = db.scalar(
         select(AccessGroup).where(
             AccessGroup.id == group_id,
@@ -175,6 +204,7 @@ def list_group_members(
 
     return members
 
+
 @router.delete(
     "/{group_id}/members/{user_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -187,6 +217,15 @@ def remove_group_member(
         require_global_admin,
     ),
 ):
+    if not is_global_admin(
+        db=db,
+        user=current_user,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Edit access required",
+        )
+
     member = db.scalar(
         select(GroupMember).where(
             GroupMember.group_id == group_id,
@@ -218,6 +257,15 @@ def grant_deposit_access(
         require_global_admin,
     ),
 ) -> DepositAccess:
+
+    if not is_global_admin(
+        db=db,
+        user=current_user,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Edit access required",
+        )
 
     group = db.scalar(
         select(AccessGroup).where(
@@ -257,10 +305,7 @@ def grant_deposit_access(
 
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "This group already has access "
-                "to this deposit"
-            ),
+            detail=("This group already has access " "to this deposit"),
         )
 
     access = DepositAccess(
@@ -289,6 +334,15 @@ def list_group_deposit_access(
         require_global_admin,
     ),
 ) -> list[DepositAccess]:
+
+    if not is_global_admin(
+        db=db,
+        user=current_user,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Edit access required",
+        )
 
     group = db.scalar(
         select(AccessGroup).where(
@@ -329,6 +383,15 @@ def revoke_deposit_access(
     ),
 ) -> None:
 
+    if not is_global_admin(
+        db=db,
+        user=current_user,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Edit access required",
+        )
+
     access = db.scalar(
         select(DepositAccess).where(
             DepositAccess.group_id == group_id,
@@ -340,9 +403,7 @@ def revoke_deposit_access(
 
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=(
-                "Deposit access rule not found"
-            ),
+            detail=("Deposit access rule not found"),
         )
 
     db.delete(access)

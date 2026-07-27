@@ -2,7 +2,6 @@ from celery import Celery
 
 from app.core.config import settings
 
-
 celery_app = Celery(
     "geoarchive",
     broker=settings.celery_broker_url,
@@ -17,6 +16,4 @@ celery_app.conf.update(
     enable_utc=True,
 )
 
-celery_app.conf.imports = (
-    "app.worker.tasks.documents",
-)
+celery_app.conf.imports = ("app.worker.tasks.documents",)

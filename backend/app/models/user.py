@@ -15,6 +15,7 @@ from app.models.base import (
     TimestampMixin,
 )
 
+
 class User(
     UUIDMixin,
     TimestampMixin,

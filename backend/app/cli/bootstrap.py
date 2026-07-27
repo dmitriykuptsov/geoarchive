@@ -7,7 +7,6 @@ from app.core.security import hash_password
 from app.models.role import Role
 from app.models.user import User
 
-
 DEFAULT_ROLES = (
     "administrator",
     "geologist",
@@ -21,11 +20,7 @@ def create_roles(session) -> dict[str, Role]:
 
     for role_name in DEFAULT_ROLES:
 
-        role = session.scalar(
-            select(Role).where(
-                Role.name == role_name
-            )
-        )
+        role = session.scalar(select(Role).where(Role.name == role_name))
 
         if role is None:
 
@@ -36,15 +31,11 @@ def create_roles(session) -> dict[str, Role]:
             session.add(role)
             session.flush()
 
-            print(
-                f"Created role: {role_name}"
-            )
+            print(f"Created role: {role_name}")
 
         else:
 
-            print(
-                f"Role already exists: {role_name}"
-            )
+            print(f"Role already exists: {role_name}")
 
         roles[role_name] = role
 
@@ -57,58 +48,37 @@ def create_admin(
 ) -> None:
 
     admin_exists = session.scalar(
-        select(User)
-        .join(User.roles)
-        .where(
-            Role.name == "administrator"
-        )
+        select(User).join(User.roles).where(Role.name == "administrator")
     )
 
     if admin_exists:
 
-        print(
-            "Administrator already exists:"
-            f" {admin_exists.username}"
-        )
+        print("Administrator already exists:" f" {admin_exists.username}")
 
         return
 
     print()
     print("Creating initial administrator")
 
-    username = input(
-        "Username: "
-    ).strip()
+    username = input("Username: ").strip()
 
-    email = input(
-        "Email: "
-    ).strip()
+    email = input("Email: ").strip()
 
-    password = getpass.getpass(
-        "Password: "
-    )
+    password = getpass.getpass("Password: ")
 
-    password_confirmation = getpass.getpass(
-        "Confirm password: "
-    )
+    password_confirmation = getpass.getpass("Confirm password: ")
 
     if password != password_confirmation:
 
-        raise ValueError(
-            "Passwords do not match"
-        )
+        raise ValueError("Passwords do not match")
 
     if not username:
 
-        raise ValueError(
-            "Username cannot be empty"
-        )
+        raise ValueError("Username cannot be empty")
 
     if not password:
 
-        raise ValueError(
-            "Password cannot be empty"
-        )
+        raise ValueError("Password cannot be empty")
 
     user = User(
         username=username,
@@ -122,10 +92,7 @@ def create_admin(
 
     session.add(user)
 
-    print(
-        f"Administrator '{username}' "
-        "created successfully"
-    )
+    print(f"Administrator '{username}' " "created successfully")
 
 
 def bootstrap() -> None:
@@ -144,9 +111,7 @@ def bootstrap() -> None:
             session.commit()
 
             print()
-            print(
-                "Bootstrap completed successfully."
-            )
+            print("Bootstrap completed successfully.")
 
         except Exception:
 

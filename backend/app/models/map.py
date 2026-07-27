@@ -28,7 +28,6 @@ from app.models.enums import (
 
 from sqlalchemy.dialects.mysql import BIGINT
 
-
 if TYPE_CHECKING:
 
     from app.models.deposit import Deposit
@@ -105,14 +104,11 @@ class Map(
         cascade="all, delete-orphan",
     )
 
-    calibration_points: Mapped[
-        list["MapCalibrationPoint"]
-    ] = relationship(
+    calibration_points: Mapped[list["MapCalibrationPoint"]] = relationship(
         back_populates="map",
         cascade="all, delete-orphan",
     )
 
-    
 
 class MapFile(Base):
 
@@ -165,6 +161,7 @@ class MapFile(Base):
     map: Mapped["Map"] = relationship(
         back_populates="files",
     )
+
 
 class MapCalibrationPoint(Base):
 

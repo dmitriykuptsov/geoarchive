@@ -38,6 +38,4 @@ class DocumentSearchResponse(
 
     total_pages: int
 
-    results: list[
-        DocumentSearchResult
-    ]
+    results: list[DocumentSearchResult]

@@ -35,6 +35,7 @@ def is_global_admin(
 
     return db.scalar(statement) is not None
 
+
 def get_group_deposit_access_level(
     db: Session,
     user: User,
@@ -49,13 +50,11 @@ def get_group_deposit_access_level(
         select(DepositAccess.access_level)
         .join(
             GroupMember,
-            GroupMember.group_id
-            == DepositAccess.group_id,
+            GroupMember.group_id == DepositAccess.group_id,
         )
         .join(
             AccessGroup,
-            AccessGroup.id
-            == GroupMember.group_id,
+            AccessGroup.id == GroupMember.group_id,
         )
         .where(
             GroupMember.user_id == user.id,
@@ -64,9 +63,7 @@ def get_group_deposit_access_level(
         )
     )
 
-    access_levels = list(
-        db.scalars(statement)
-    )
+    access_levels = list(db.scalars(statement))
 
     if not access_levels:
 
@@ -76,6 +73,7 @@ def get_group_deposit_access_level(
         access_levels,
         key=lambda level: ACCESS_LEVEL_ORDER[level],
     )
+
 
 def get_deposit_access_level(
     db: Session,
@@ -102,6 +100,7 @@ def get_deposit_access_level(
         deposit.id,
     )
 
+
 def can_view_deposit(
     db: Session,
     user: User,
@@ -119,6 +118,7 @@ def can_view_deposit(
         DepositAccessLevel.EDIT,
         DepositAccessLevel.ADMIN,
     }
+
 
 def can_edit_deposit(
     db: Session,
@@ -145,6 +145,7 @@ def can_edit_deposit(
         DepositAccessLevel.ADMIN,
     }
 
+
 def can_administer_deposit(
     db: Session,
     user: User,
@@ -158,7 +159,3 @@ def can_administer_deposit(
     )
 
     return access_level == DepositAccessLevel.ADMIN
-
-
-
-

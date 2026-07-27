@@ -9,6 +9,7 @@ from app.models.enums import (
 
 from app.models.document import DocumentStatus
 
+
 class DocumentResponse(BaseModel):
 
     id: int

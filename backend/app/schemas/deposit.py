@@ -42,13 +42,9 @@ class DepositCreateRequest(BaseModel):
         max_length=255,
     )
 
-    status: DepositStatus = (
-        DepositStatus.ACTIVE
-    )
+    status: DepositStatus = DepositStatus.ACTIVE
 
-    visibility: DepositVisibility = (
-        DepositVisibility.PRIVATE
-    )
+    visibility: DepositVisibility = DepositVisibility.PRIVATE
 
     latitude: Decimal | None = Field(
         default=None,

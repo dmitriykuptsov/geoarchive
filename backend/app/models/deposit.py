@@ -7,7 +7,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     ForeignKey,
-    Numeric
+    Numeric,
 )
 
 
@@ -26,6 +26,7 @@ from app.models.base import (
 from sqlalchemy.dialects.mysql import BIGINT
 
 from decimal import Decimal
+
 
 class Deposit(
     UUIDMixin,
@@ -140,5 +141,3 @@ class Deposit(
         back_populates="deposit",
         cascade="all, delete-orphan",
     )
-
-    

@@ -20,13 +20,12 @@ def verify_password(
         hashed_password,
     )
 
+
 def create_access_token(
     subject: str,
 ) -> str:
 
-    expires_at = datetime.now(
-        timezone.utc
-    ) + timedelta(
+    expires_at = datetime.now(timezone.utc) + timedelta(
         minutes=settings.access_token_expire_minutes
     )
 
@@ -40,6 +39,7 @@ def create_access_token(
         settings.jwt_secret_key,
         algorithm=settings.jwt_algorithm,
     )
+
 
 def decode_access_token(token: str) -> dict:
     return jwt.decode(

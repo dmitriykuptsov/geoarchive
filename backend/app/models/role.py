@@ -20,6 +20,7 @@ from app.models.base import (
 
 from sqlalchemy.dialects.mysql import BIGINT
 
+
 class Role(
     UUIDMixin,
     Base,
@@ -44,10 +45,10 @@ class Role(
         back_populates="roles",
     )
 
+
 user_roles = Table(
     "user_roles",
     Base.metadata,
-
     Column(
         "user_id",
         BIGINT(unsigned=True),
@@ -57,7 +58,6 @@ user_roles = Table(
         ),
         primary_key=True,
     ),
-
     Column(
         "role_id",
         BIGINT(unsigned=True),
@@ -68,4 +68,3 @@ user_roles = Table(
         primary_key=True,
     ),
 )
-

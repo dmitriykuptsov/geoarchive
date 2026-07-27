@@ -12,9 +12,7 @@ class DepositAccessLevel(str, PyEnum):
 
 class DepositAccessCreateRequest(BaseModel):
 
-    access_level: DepositAccessLevel = (
-        DepositAccessLevel.VIEW
-    )
+    access_level: DepositAccessLevel = DepositAccessLevel.VIEW
 
 
 class DepositAccessResponse(BaseModel):
@@ -39,6 +37,4 @@ class DepositAccessLevel(str, PyEnum):
 class DepositAccessCreateRequest(BaseModel):
 
     group_id: int
-    access_level: DepositAccessLevel = (
-        DepositAccessLevel.VIEW
-    )
+    access_level: DepositAccessLevel = DepositAccessLevel.VIEW

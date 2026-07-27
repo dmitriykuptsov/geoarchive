@@ -14,21 +14,13 @@ class Settings(BaseSettings):
 
     database_url: str = Field(validation_alias="DATABASE_URL")
 
-    document_storage_path: str = (
-        "./storage"
-    )
+    document_storage_path: str = "./storage"
 
-    redis_url: str = (
-        "redis://redis:6379/0"
-    )
+    redis_url: str = "redis://redis:6379/0"
 
-    celery_broker_url: str = (
-        "redis://redis:6379/0"
-    )
+    celery_broker_url: str = "redis://redis:6379/0"
 
-    celery_result_backend: str = (
-        "redis://redis:6379/1"
-    )
+    celery_result_backend: str = "redis://redis:6379/1"
 
     class Config:
 

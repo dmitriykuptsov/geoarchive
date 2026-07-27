@@ -4,15 +4,7 @@ from fastapi import (
     Query,
 )
 
-from sqlalchemy import (
-    bindparam,
-    select,
-    text,
-    literal_column,
-    Float,
-    exists,
-    func
-)
+from sqlalchemy import bindparam, select, text, literal_column, Float, exists, func
 
 from app.services.search_snippet import (
     create_snippet,
@@ -26,18 +18,11 @@ from sqlalchemy.ext.compiler import compiles
 
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import (
-    get_db,
-    require_password_changed
-)
+from app.core.dependencies import get_db, require_password_changed
 
-from app.services.deposit_access import (
-    is_global_admin
-)
+from app.services.deposit_access import is_global_admin
 
-from app.models.user import (
-    User
-)
+from app.models.user import User
 
 from app.models.document import (
     Document,
@@ -66,6 +51,7 @@ from app.schemas.search import (
 
 router = APIRouter()
 
+
 class MatchAgainst(
     GenericFunction,
 ):
@@ -75,6 +61,7 @@ class MatchAgainst(
     inherit_cache = True
 
     name = "match_against"
+
 
 @compiles(
     MatchAgainst,
@@ -96,10 +83,8 @@ def compile_match_against(
         **kwargs,
     )
 
-    return (
-        f"MATCH({content}) "
-        f"AGAINST({query} IN BOOLEAN MODE)"
-    )
+    return f"MATCH({content}) " f"AGAINST({query} IN BOOLEAN MODE)"
+
 
 @router.get(
     "/documents",
@@ -110,31 +95,25 @@ def search_documents(
         min_length=1,
         max_length=500,
     ),
-
     page: int = Query(
         default=1,
         ge=1,
     ),
-
     page_size: int = Query(
         default=20,
         ge=1,
         le=100,
     ),
-
     db: Session = Depends(
         get_db,
     ),
-
     current_user: User = Depends(
         require_password_changed,
     ),
 ):
     query = q.strip()
 
-    offset = (
-        page - 1
-    ) * page_size
+    offset = (page - 1) * page_size
 
     if not query:
 
@@ -144,58 +123,44 @@ def search_documents(
         )
 
     relevance_expression = MatchAgainst(
-            DocumentChunk.content,
-            bindparam(
-                "search_query",
-                query,
-            ),
-        )
+        DocumentChunk.content,
+        bindparam(
+            "search_query",
+            query,
+        ),
+    )
 
     statement = (
         select(
             Document.id.label(
                 "document_id",
             ),
-
             Document.title.label(
                 "document_name",
             ),
-
             DocumentPage.id.label(
                 "page_id",
             ),
-
             DocumentPage.page_number,
-
             DocumentChunk.id.label(
                 "chunk_id",
             ),
-
             DocumentChunk.content,
-
             relevance_expression.label(
                 "relevance",
             ),
         )
-
         .join(
             DocumentPage,
-
-            DocumentPage.document_id
-            == Document.id,
+            DocumentPage.document_id == Document.id,
         )
-
         .join(
             DocumentChunk,
-
-            DocumentChunk.page_id
-            == DocumentPage.id,
+            DocumentChunk.page_id == DocumentPage.id,
         )
-
         .where(
             relevance_expression > 0,
         )
-
         .params(
             search_query=query,
         )
@@ -204,39 +169,26 @@ def search_documents(
     if not is_global_admin(db=db, user=current_user):
 
         statement = (
-            statement
-
-            .join(
+            statement.join(
                 DepositAccess,
-
-                DepositAccess.deposit_id
-                == Document.deposit_id,
+                DepositAccess.deposit_id == Document.deposit_id,
             )
-
             .join(
                 GroupMember,
-
-                GroupMember.group_id
-                == DepositAccess.group_id,
+                GroupMember.group_id == DepositAccess.group_id,
             )
-
             .where(
-                GroupMember.user_id
-                == current_user.id,
+                GroupMember.user_id == current_user.id,
             )
         )
 
     statement = (
-        statement
-
-        .order_by(
+        statement.order_by(
             relevance_expression.desc(),
         )
-
         .offset(
             offset,
         )
-
         .limit(
             page_size,
         )
@@ -263,27 +215,13 @@ def search_documents(
         results.append(
             DocumentSearchResult(
                 document_id=row.document_id,
-
-                document_name=(
-                    row.document_name
-                ),
-
+                document_name=(row.document_name),
                 page_id=row.page_id,
-
-                page_number=(
-                    row.page_number
-                ),
-
+                page_number=(row.page_number),
                 chunk_id=row.chunk_id,
-
                 content=row.content,
-
                 snippet=snippet,
-
-                highlighted_snippet=(
-                    highlighted_snippet
-                ),
-
+                highlighted_snippet=(highlighted_snippet),
                 relevance=float(
                     row.relevance,
                 ),
@@ -297,15 +235,11 @@ def search_documents(
         )
         .join(
             GroupMember,
-            GroupMember.group_id
-            == DepositAccess.group_id,
+            GroupMember.group_id == DepositAccess.group_id,
         )
         .where(
-            DepositAccess.deposit_id
-            == Document.deposit_id,
-
-            GroupMember.user_id
-            == current_user.id,
+            DepositAccess.deposit_id == Document.deposit_id,
+            GroupMember.user_id == current_user.id,
         )
     )
 
@@ -319,23 +253,17 @@ def search_documents(
                 DocumentChunk.id,
             ),
         )
-
         .select_from(
             DocumentChunk,
         )
-
         .join(
             DocumentPage,
-            DocumentPage.id
-            == DocumentChunk.page_id,
+            DocumentPage.id == DocumentChunk.page_id,
         )
-
         .join(
             Document,
-            Document.id
-            == DocumentPage.document_id,
+            Document.id == DocumentPage.document_id,
         )
-
         .where(
             relevance_expression,
         )
@@ -343,15 +271,16 @@ def search_documents(
 
     if not is_global_admin(db=db, user=current_user):
 
-        count_statement = (
-            count_statement.where(
-                access_condition,
-            )
+        count_statement = count_statement.where(
+            access_condition,
         )
 
-    total = db.scalar(
-        count_statement,
-    ) or 0
+    total = (
+        db.scalar(
+            count_statement,
+        )
+        or 0
+    )
 
     total_pages = math.ceil(
         total / page_size,
@@ -359,14 +288,9 @@ def search_documents(
 
     return DocumentSearchResponse(
         query=q,
-
         page=page,
-
         page_size=page_size,
-
         total=total,
-
         total_pages=total_pages,
-
         results=results,
     )

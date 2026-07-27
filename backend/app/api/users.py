@@ -14,9 +14,7 @@ from app.core.dependencies import (
     require_admin,
 )
 
-from app.core.utils import (
-    count_active_admins
-)
+from app.core.utils import count_active_admins
 
 from app.core.security import hash_password
 
@@ -32,6 +30,7 @@ from app.schemas.user import (
 
 router = APIRouter()
 
+
 @router.post(
     "",
     response_model=UserResponse,
@@ -43,11 +42,7 @@ def create_user(
     admin: User = Depends(require_admin),
 ) -> UserResponse:
 
-    existing_user = db.scalar(
-        select(User).where(
-            User.username == request.username
-        )
-    )
+    existing_user = db.scalar(select(User).where(User.username == request.username))
 
     if existing_user:
 
@@ -58,11 +53,7 @@ def create_user(
 
     if request.email:
 
-        existing_email = db.scalar(
-            select(User).where(
-                User.email == request.email
-            )
-        )
+        existing_email = db.scalar(select(User).where(User.email == request.email))
 
         if existing_email:
 
@@ -71,17 +62,9 @@ def create_user(
                 detail="Email already exists",
             )
 
-    roles = list(
-        db.scalars(
-            select(Role).where(
-                Role.id.in_(request.role_ids)
-            )
-        )
-    )
+    roles = list(db.scalars(select(Role).where(Role.id.in_(request.role_ids))))
 
-    if len(roles) != len(
-        set(request.role_ids)
-    ):
+    if len(roles) != len(set(request.role_ids)):
 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -91,9 +74,7 @@ def create_user(
     user = User(
         username=request.username,
         email=request.email,
-        password_hash=hash_password(
-            request.password
-        ),
+        password_hash=hash_password(request.password),
         is_active=True,
         must_change_password=True,
     )
@@ -129,17 +110,13 @@ def list_users(
     admin: User = Depends(require_admin),
 ) -> UserListResponse:
 
-    users = list(
-        db.scalars(
-            select(User)
-            .order_by(User.id)
-        )
-    )
+    users = list(db.scalars(select(User).order_by(User.id)))
 
     return UserListResponse(
         items=users,
         total=len(users),
     )
+
 
 @router.get(
     "/{user_id}",
@@ -151,20 +128,17 @@ def get_user(
     admin: User = Depends(require_admin),
 ) -> UserResponse:
 
-    user = db.scalar(
-        select(User).where(
-            User.id == user_id
-        )
-    )
+    user = db.scalar(select(User).where(User.id == user_id))
 
     if user is None:
-        
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
 
     return user
+
 
 @router.patch(
     "/{user_id}",
@@ -177,11 +151,7 @@ def update_user(
     admin: User = Depends(require_admin),
 ) -> UserResponse:
 
-    user = db.scalar(
-        select(User).where(
-            User.id == user_id
-        )
-    )
+    user = db.scalar(select(User).where(User.id == user_id))
 
     if user is None:
 
@@ -214,34 +184,25 @@ def update_user(
 
     if request.role_ids is not None:
 
-        roles = list(
-            db.scalars(
-                select(Role).where(
-                    Role.id.in_(
-                        request.role_ids
-                    )
-                )
-            )
-        )
+        roles = list(db.scalars(select(Role).where(Role.id.in_(request.role_ids))))
 
-        if len(roles) != len(
-            set(request.role_ids)
-        ):
+        if len(roles) != len(set(request.role_ids)):
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="One or more roles do not exist",
             )
 
-        if sum([1 if "administrator" == role.name else 0 for role in roles]) == 0 \
-            and sum([1 if "administrator" == role.name else 0 for role in user.roles]) != 0 \
-            and count_active_admins(db) <= 1:
-        
+        if (
+            sum([1 if "administrator" == role.name else 0 for role in roles]) == 0
+            and sum([1 if "administrator" == role.name else 0 for role in user.roles])
+            != 0
+            and count_active_admins(db) <= 1
+        ):
+
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Cannot remove the last active administrator"
-                ),
+                detail=("Cannot remove the last active administrator"),
             )
 
         user.roles = roles

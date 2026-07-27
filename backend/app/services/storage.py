@@ -6,6 +6,7 @@ import hashlib
 
 from fastapi import UploadFile
 
+
 class FileStorage:
 
     def __init__(
@@ -17,7 +18,6 @@ class FileStorage:
             base_path,
         )
 
-
     async def save(
         self,
         file: UploadFile,
@@ -26,21 +26,14 @@ class FileStorage:
         storage_filename: str,
     ) -> tuple[str, int, str]:
 
-        deposit_directory = (
-            self.base_path
-            / category
-            / str(deposit_id)
-        )
+        deposit_directory = self.base_path / category / str(deposit_id)
 
         deposit_directory.mkdir(
             parents=True,
             exist_ok=True,
         )
 
-        destination = (
-            deposit_directory
-            / storage_filename
-        )
+        destination = deposit_directory / storage_filename
 
         hasher = hashlib.sha256()
 
@@ -77,14 +70,12 @@ class FileStorage:
         storage_path: str,
     ) -> None:
 
-        file_path = (
-            self.base_path
-            / storage_path
-        )
+        file_path = self.base_path / storage_path
 
         if file_path.exists():
 
             file_path.unlink()
+
 
 file_storage = FileStorage(
     base_path=settings.document_storage_path,

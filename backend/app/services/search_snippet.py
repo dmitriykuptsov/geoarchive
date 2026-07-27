@@ -16,9 +16,7 @@ def create_snippet(
 
     if match_position == -1:
 
-        return content[
-            :context_size * 2
-        ]
+        return content[: context_size * 2]
 
     start = max(
         0,
@@ -27,14 +25,10 @@ def create_snippet(
 
     end = min(
         len(content),
-        match_position
-        + len(query)
-        + context_size,
+        match_position + len(query) + context_size,
     )
 
-    snippet = content[
-        start:end
-    ].strip()
+    snippet = content[start:end].strip()
 
     if start > 0:
 
@@ -60,16 +54,10 @@ def highlight_text(
         re.escape(
             query,
         ),
-
         re.IGNORECASE,
     )
 
     return pattern.sub(
-        lambda match: (
-            "<mark>"
-            + match.group(0)
-            + "</mark>"
-        ),
-
+        lambda match: ("<mark>" + match.group(0) + "</mark>"),
         text,
     )

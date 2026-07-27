@@ -2,16 +2,7 @@ from typing import List
 
 from datetime import date
 
-from sqlalchemy import (
-    Boolean,
-    Date,
-    DECIMAL,
-    ForeignKey,
-    Integer,
-    Text,
-    Enum,
-    String
-)
+from sqlalchemy import Boolean, Date, DECIMAL, ForeignKey, Integer, Text, Enum, String
 
 from sqlalchemy.orm import (
     Mapped,
@@ -20,12 +11,10 @@ from sqlalchemy.orm import (
 )
 
 
-from app.models.base import (
-    Base,
-    UUIDMixin
-)
+from app.models.base import Base, UUIDMixin
 
 from sqlalchemy.dialects.mysql import BIGINT
+
 
 class AttributeDefinition(
     UUIDMixin,

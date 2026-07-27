@@ -10,6 +10,7 @@ from app.services.text_chunker import TextChunker
 from app.services.storage import FileStorage, file_storage
 from app.models.enums import ExtractionMethod
 
+
 @celery_app.task(
     name="documents.process",
 )
@@ -28,18 +29,12 @@ def process_document(
 
         if document is None:
 
-            raise ValueError(
-                "Document not found"
-            )
+            raise ValueError("Document not found")
 
-        document.status = (
-            DocumentStatus.PROCESSING
-        )
+        document.status = DocumentStatus.PROCESSING
 
-        document.processing_started_at = (
-            datetime.now(
-                timezone.utc,
-            )
+        document.processing_started_at = datetime.now(
+            timezone.utc,
         )
 
         document.processing_completed_at = None
@@ -50,10 +45,7 @@ def process_document(
 
         processor = PDFProcessor()
 
-        file_path = (
-            file_storage.base_path
-            / document.storage_path
-        )
+        file_path = file_storage.base_path / document.storage_path
 
         pages = processor.extract(
             str(file_path),
@@ -65,24 +57,9 @@ def process_document(
 
             page = DocumentPage(
                 document_id=document.id,
-
-                page_number=(
-                    page_data[
-                        "page_number"
-                    ]
-                ),
-
-                width=(
-                    page_data[
-                        "width"
-                    ]
-                ),
-
-                height=(
-                    page_data[
-                        "height"
-                    ]
-                ),
+                page_number=(page_data["page_number"]),
+                width=(page_data["width"]),
+                height=(page_data["height"]),
             )
 
             db.add(page)
@@ -99,26 +76,18 @@ def process_document(
 
                 chunk = DocumentChunk(
                     document_id=document.id,
-
                     page_id=page.id,
-
                     chunk_index=chunk_index,
-
                     content=content,
-
-                    extraction_method = ExtractionMethod.NATIVE_PDF
+                    extraction_method=ExtractionMethod.NATIVE_PDF,
                 )
 
                 db.add(chunk)
 
-        document.status = (
-            DocumentStatus.PROCESSED
-        )
+        document.status = DocumentStatus.PROCESSED
 
-        document.processing_completed_at = (
-            datetime.now(
-                timezone.utc,
-            )
+        document.processing_completed_at = datetime.now(
+            timezone.utc,
         )
 
         document.processing_error = None
@@ -127,9 +96,7 @@ def process_document(
 
         return {
             "document_id": document.id,
-
             "status": "processed",
-
             "pages": len(pages),
         }
 
@@ -144,18 +111,12 @@ def process_document(
 
         if document is not None:
 
-            document.status = (
-                DocumentStatus.FAILED
-            )
+            document.status = DocumentStatus.FAILED
 
-            document.processing_error = str(
-                exc
-            )
+            document.processing_error = str(exc)
 
-            document.processing_completed_at = (
-                datetime.now(
-                    timezone.utc,
-                )
+            document.processing_completed_at = datetime.now(
+                timezone.utc,
             )
 
             db.commit()
@@ -163,5 +124,5 @@ def process_document(
         raise
 
     finally:
-        
+
         db.close()

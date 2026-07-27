@@ -90,6 +90,26 @@ class MapCalibrationPointCreate(
     )
 
 
+class MapCalibrationPointUpdate(
+    BaseModel,
+):
+    pixel_x: Decimal | None = None
+
+    pixel_y: Decimal | None = None
+
+    longitude: Decimal | None = Field(
+        default=None,
+        ge=Decimal("-180"),
+        le=Decimal("180"),
+    )
+
+    latitude: Decimal | None = Field(
+        default=None,
+        ge=Decimal("-90"),
+        le=Decimal("90"),
+    )
+
+
 class MapCalibrationPointResponse(
     BaseModel,
 ):
@@ -132,6 +152,7 @@ class MapResponse(
     coordinate_system: str
 
     created_by: int
+
 
 class MapUpdate(
     BaseModel,
