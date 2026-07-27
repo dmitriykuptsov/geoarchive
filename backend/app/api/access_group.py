@@ -68,14 +68,6 @@ def create_access_group(
             detail=("An access group with this name " "already exists"),
         )
 
-    if not is_global_admin(
-        db=db,
-        user=current_user,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Edit access required",
-        )
 
     access_group = AccessGroup(
         name=request.name,
@@ -102,14 +94,6 @@ def add_group_member(
         require_global_admin,
     ),
 ):
-    if not is_global_admin(
-        db=db,
-        user=current_user,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Edit access required",
-        )
 
     group = db.scalar(
         select(AccessGroup).where(
@@ -171,14 +155,6 @@ def list_group_members(
         require_global_admin,
     ),
 ):
-    if not is_global_admin(
-        db=db,
-        user=current_user,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Edit access required",
-        )
 
     group = db.scalar(
         select(AccessGroup).where(
@@ -217,14 +193,6 @@ def remove_group_member(
         require_global_admin,
     ),
 ):
-    if not is_global_admin(
-        db=db,
-        user=current_user,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Edit access required",
-        )
 
     member = db.scalar(
         select(GroupMember).where(
@@ -257,15 +225,6 @@ def grant_deposit_access(
         require_global_admin,
     ),
 ) -> DepositAccess:
-
-    if not is_global_admin(
-        db=db,
-        user=current_user,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Edit access required",
-        )
 
     group = db.scalar(
         select(AccessGroup).where(
@@ -335,15 +294,6 @@ def list_group_deposit_access(
     ),
 ) -> list[DepositAccess]:
 
-    if not is_global_admin(
-        db=db,
-        user=current_user,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Edit access required",
-        )
-
     group = db.scalar(
         select(AccessGroup).where(
             AccessGroup.id == group_id,
@@ -382,15 +332,6 @@ def revoke_deposit_access(
         require_global_admin,
     ),
 ) -> None:
-
-    if not is_global_admin(
-        db=db,
-        user=current_user,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Edit access required",
-        )
 
     access = db.scalar(
         select(DepositAccess).where(
