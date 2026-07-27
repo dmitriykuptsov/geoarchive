@@ -41,7 +41,9 @@ from app.schemas.map import (
     MapCalibrationPointResponse,
     MapCalibrationPointUpdate,
     AffineTransformationResponse,
-    CalibrationErrorResponse
+    CalibrationErrorResponse,
+    WGS84CoordinateResponse,
+    PixelCoordinateRequest
 )
 
 from app.core.dependencies import (
@@ -1001,4 +1003,87 @@ def solve_map_calibration(
                 error.max_error_meters
             ),
         ),
+    )
+
+@router.post(
+    "/{map_id}/calibration/transform",
+    response_model=WGS84CoordinateResponse,
+)
+def transform_pixel_coordinate(
+    map_id: int,
+    payload: PixelCoordinateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+    geological_map = db.get(
+        Map,
+        map_id,
+    )
+
+    if geological_map is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Map not found",
+        )
+
+    deposit = db.get(
+        Deposit,
+        geological_map.deposit_id,
+    )
+
+    if (
+        not is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        and not can_view_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="View access required",
+        )
+
+    calibration_points = db.scalars(
+        select(MapCalibrationPoint)
+        .where(
+            MapCalibrationPoint.map_id == map_id,
+        )
+        .order_by(
+            MapCalibrationPoint.id,
+        )
+    ).all()
+
+    if len(calibration_points) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "At least 3 calibration points "
+                "are required"
+            ),
+        )
+
+    transformation = (
+        calculate_affine_transformation(
+            calibration_points,
+        )
+    )
+
+    longitude, latitude = (
+        transformation.pixel_to_wgs84(
+            float(payload.pixel_x),
+            float(payload.pixel_y),
+        )
+    )
+
+    return WGS84CoordinateResponse(
+        pixel_x=payload.pixel_x,
+        pixel_y=payload.pixel_y,
+        longitude=longitude,
+        latitude=latitude,
     )

@@ -194,3 +194,12 @@ class AffineTransformationResponse(BaseModel):
 
     error: CalibrationErrorResponse
 
+class PixelCoordinateRequest(BaseModel):
+    pixel_x: Decimal
+    pixel_y: Decimal
+
+class WGS84CoordinateResponse(BaseModel):
+    pixel_x: Decimal
+    pixel_y: Decimal
+    longitude: Decimal
+    latitude: Decimal
