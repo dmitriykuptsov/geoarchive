@@ -40,7 +40,8 @@ from app.schemas.map import (
     MapCalibrationPointCreate,
     MapCalibrationPointResponse,
     MapCalibrationPointUpdate,
-    AffineTransformationResponse
+    AffineTransformationResponse,
+    CalibrationErrorResponse
 )
 
 from app.core.dependencies import (
@@ -979,11 +980,25 @@ def solve_map_calibration(
         )
     )
 
+    error = (
+        transformation.calculate_error(
+            calibration_points,
+        )
+    )
+
     return AffineTransformationResponse(
         longitude_coefficients=(
             transformation.longitude_coefficients
         ),
         latitude_coefficients=(
             transformation.latitude_coefficients
+        ),
+        error=CalibrationErrorResponse(
+            rmse_meters=(
+                error.rmse_meters
+            ),
+            max_error_meters=(
+                error.max_error_meters
+            ),
         ),
     )

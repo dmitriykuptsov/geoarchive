@@ -1,7 +1,12 @@
 from dataclasses import dataclass
 
 import numpy as np
+import math
 
+@dataclass
+class CalibrationError:
+    rmse_meters: float
+    max_error_meters: float
 
 @dataclass
 class AffineTransformation:
@@ -34,6 +39,72 @@ class AffineTransformation:
         )
 
         return longitude, latitude
+
+    def calculate_error(
+        self,
+        calibration_points,
+    ) -> CalibrationError:
+
+        errors = []
+
+        for point in calibration_points:
+            predicted_longitude, predicted_latitude = (
+                self.pixel_to_wgs84(
+                    float(point.pixel_x),
+                    float(point.pixel_y),
+                )
+            )
+
+            longitude_error = (
+                predicted_longitude
+                - float(point.longitude)
+            )
+
+            latitude_error = (
+                predicted_latitude
+                - float(point.latitude)
+            )
+
+            latitude_radians = math.radians(
+                float(point.latitude)
+            )
+
+            east_west_error = (
+                longitude_error
+                * 111_320
+                * math.cos(latitude_radians)
+            )
+
+            north_south_error = (
+                latitude_error
+                * 111_320
+            )
+
+            error_meters = math.sqrt(
+                east_west_error ** 2
+                + north_south_error ** 2
+            )
+
+            errors.append(
+                error_meters
+            )
+
+        rmse_meters = math.sqrt(
+            sum(
+                error ** 2
+                for error in errors
+            )
+            / len(errors)
+        )
+
+        max_error_meters = max(
+            errors
+        )
+
+        return CalibrationError(
+            rmse_meters=rmse_meters,
+            max_error_meters=max_error_meters,
+        )
 
 
 def calculate_affine_transformation(

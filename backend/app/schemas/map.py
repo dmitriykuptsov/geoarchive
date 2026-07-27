@@ -173,6 +173,12 @@ class MapUpdate(
         max_length=50,
     )
 
+class CalibrationErrorResponse(
+    BaseModel,
+):
+    rmse_meters: float
+    max_error_meters: float
+
 class AffineTransformationResponse(BaseModel):
     longitude_coefficients: tuple[
         float,
@@ -185,3 +191,6 @@ class AffineTransformationResponse(BaseModel):
         float,
         float,
     ]
+
+    error: CalibrationErrorResponse
+
