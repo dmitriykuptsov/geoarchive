@@ -172,3 +172,16 @@ class MapUpdate(
         default=None,
         max_length=50,
     )
+
+class AffineTransformationResponse(BaseModel):
+    longitude_coefficients: tuple[
+        float,
+        float,
+        float,
+    ]
+
+    latitude_coefficients: tuple[
+        float,
+        float,
+        float,
+    ]

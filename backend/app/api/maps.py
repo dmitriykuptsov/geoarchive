@@ -40,6 +40,7 @@ from app.schemas.map import (
     MapCalibrationPointCreate,
     MapCalibrationPointResponse,
     MapCalibrationPointUpdate,
+    AffineTransformationResponse
 )
 
 from app.core.dependencies import (
@@ -55,6 +56,7 @@ from app.services.deposit_access import (
 )
 
 from app.services.storage import FileStorage, file_storage
+from app.services.map_transformation import calculate_affine_transformation
 
 router = APIRouter()
 
@@ -908,3 +910,80 @@ def delete_calibration_point(
     db.commit()
 
     return None
+
+@router.post(
+    "/{map_id}/calibration/solve",
+    response_model=AffineTransformationResponse,
+)
+def solve_map_calibration(
+    map_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+    geological_map = db.get(
+        Map,
+        map_id,
+    )
+
+    if geological_map is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Map not found",
+        )
+
+    deposit = db.get(
+        Deposit,
+        geological_map.deposit_id,
+    )
+
+    if (
+        not is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        and not can_view_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="View access required",
+        )
+
+    calibration_points = db.scalars(
+        select(MapCalibrationPoint)
+        .where(
+            MapCalibrationPoint.map_id == map_id,
+        )
+        .order_by(
+            MapCalibrationPoint.id,
+        )
+    ).all()
+
+    if len(calibration_points) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "At least 3 calibration points "
+                "are required"
+            ),
+        )
+
+    transformation = (
+        calculate_affine_transformation(
+            calibration_points,
+        )
+    )
+
+    return AffineTransformationResponse(
+        longitude_coefficients=(
+            transformation.longitude_coefficients
+        ),
+        latitude_coefficients=(
+            transformation.latitude_coefficients
+        ),
+    )
