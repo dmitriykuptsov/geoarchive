@@ -43,3 +43,7 @@ from app.models.deposit_access import (
     DepositAccess,
     DepositAccessLevel,
 )
+
+from app.models.borehole import (
+    Borehole
+)

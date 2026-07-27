@@ -109,6 +109,12 @@ class Map(
         cascade="all, delete-orphan",
     )
 
+    boreholes: Mapped[list["Borehole"]] = relationship(
+        "Borehole",
+        back_populates="map",
+        cascade="all, delete-orphan",
+    )
+
 
 class MapFile(Base):
 

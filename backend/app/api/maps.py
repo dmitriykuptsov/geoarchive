@@ -28,6 +28,10 @@ from app.models.map import (
     MapCalibrationPoint,
 )
 
+from app.models.borehole import (
+    Borehole
+)
+
 from app.models.user import (
     User,
 )
@@ -44,6 +48,12 @@ from app.schemas.map import (
     CalibrationErrorResponse,
     WGS84CoordinateResponse,
     PixelCoordinateRequest
+)
+
+from app.schemas.borehole import (
+    BoreholeCreate,
+    BoreholeUpdate,
+    BoreholeResponse
 )
 
 from app.core.dependencies import (
@@ -1087,3 +1097,405 @@ def transform_pixel_coordinate(
         longitude=longitude,
         latitude=latitude,
     )
+
+@router.post(
+    "/{map_id}/boreholes",
+    response_model=BoreholeResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_borehole(
+    map_id: int,
+    payload: BoreholeCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+
+    geological_map = db.get(
+        Map,
+        map_id,
+    )
+
+    if geological_map is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Map not found",
+        )
+
+    deposit = db.get(
+        Deposit,
+        geological_map.deposit_id,
+    )
+
+    if (
+        not is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        and not can_edit_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Edit access required",
+        )
+
+    calibration_points = db.scalars(
+        select(MapCalibrationPoint)
+        .where(
+            MapCalibrationPoint.map_id == map_id,
+        )
+        .order_by(
+            MapCalibrationPoint.id,
+        )
+    ).all()
+
+    if len(calibration_points) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "At least 3 calibration points "
+                "are required"
+            ),
+        )
+
+    transformation = (
+        calculate_affine_transformation(
+            calibration_points,
+        )
+    )
+
+    longitude, latitude = (
+        transformation.pixel_to_wgs84(
+            float(payload.pixel_x),
+            float(payload.pixel_y),
+        )
+    )
+
+    borehole = Borehole(
+        map_id=map_id,
+        name=payload.name,
+        description=payload.description,
+        pixel_x=payload.pixel_x,
+        pixel_y=payload.pixel_y,
+        longitude=longitude,
+        latitude=latitude,
+    )
+
+    try:
+        db.add(
+            borehole,
+        )
+
+        db.commit()
+
+    except IntegrityError as exc:
+        db.rollback()
+
+        if (
+            "uq_borehole_map_name"
+            in str(exc.orig)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "A borehole with this name "
+                    "already exists on this map"
+                ),
+            )
+
+        raise
+
+    return borehole
+
+@router.get(
+    "/{map_id}/boreholes",
+    response_model=list[BoreholeResponse],
+)
+def list_boreholes(
+    map_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+    geological_map = db.get(
+        Map,
+        map_id,
+    )
+
+    if geological_map is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Map not found",
+        )
+
+    deposit = db.get(
+        Deposit,
+        geological_map.deposit_id,
+    )
+
+    if (
+        not is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        and not can_view_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="View access required",
+        )
+
+    boreholes = db.scalars(
+        select(Borehole)
+        .where(
+            Borehole.map_id == map_id,
+        )
+        .order_by(
+            Borehole.id,
+        )
+    ).all()
+
+    return boreholes
+
+@router.get(
+    "/{map_id}/boreholes/{borehole_id}",
+    response_model=BoreholeResponse,
+)
+def get_borehole(
+    map_id: int,
+    borehole_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+    borehole = db.scalar(
+        select(Borehole).where(
+            Borehole.id == borehole_id,
+            Borehole.map_id == map_id,
+        )
+    )
+
+    if borehole is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Borehole not found",
+        )
+
+    geological_map = db.get(
+        Map,
+        map_id,
+    )
+
+    deposit = db.get(
+        Deposit,
+        geological_map.deposit_id,
+    )
+
+    if (
+        not is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        and not can_view_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="View access required",
+        )
+
+    return borehole
+
+@router.patch(
+    "/{map_id}/boreholes/{borehole_id}",
+    response_model=BoreholeResponse,
+)
+def update_borehole(
+    map_id: int,
+    borehole_id: int,
+    payload: BoreholeUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+
+    borehole = db.scalar(
+        select(Borehole).where(
+            Borehole.id == borehole_id,
+            Borehole.map_id == map_id,
+        )
+    )
+
+    if borehole is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Borehole not found",
+        )
+
+    update_data = payload.model_dump(
+        exclude_unset=True,
+    )
+
+    if "name" in update_data:
+        borehole.name = (
+            update_data["name"]
+        )
+
+    if "description" in update_data:
+        borehole.description = (
+            update_data["description"]
+        )
+
+    pixel_x = (
+        update_data.get(
+            "pixel_x",
+            borehole.pixel_x,
+        )
+    )
+
+    pixel_y = (
+        update_data.get(
+            "pixel_y",
+            borehole.pixel_y,
+        )
+    )
+
+    if (
+        "pixel_x" in update_data
+        or "pixel_y" in update_data
+    ):
+        calibration_points = db.scalars(
+            select(
+                MapCalibrationPoint,
+            )
+            .where(
+                MapCalibrationPoint.map_id
+                == map_id,
+            )
+        ).all()
+
+        if len(calibration_points) < 3:
+            raise HTTPException(
+                status_code=(
+                    status.HTTP_400_BAD_REQUEST
+                ),
+                detail=(
+                    "At least 3 calibration "
+                    "points are required"
+                ),
+            )
+
+        transformation = (
+            calculate_affine_transformation(
+                calibration_points,
+            )
+        )
+
+        longitude, latitude = (
+            transformation.pixel_to_wgs84(
+                float(pixel_x),
+                float(pixel_y),
+            )
+        )
+
+        borehole.pixel_x = pixel_x
+        borehole.pixel_y = pixel_y
+        borehole.longitude = longitude
+        borehole.latitude = latitude
+
+    try:
+
+        db.commit()
+
+    except IntegrityError as exc:
+        db.rollback()
+
+        if (
+            "uq_borehole_map_name"
+            in str(exc.orig)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "A borehole with this name "
+                    "already exists on this map"
+                ),
+            )
+
+        raise
+
+    return borehole
+
+@router.delete(
+    "/{map_id}/boreholes/{borehole_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_borehole(
+    map_id: int,
+    borehole_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+    borehole = db.scalar(
+        select(Borehole).where(
+            Borehole.id == borehole_id,
+            Borehole.map_id == map_id,
+        )
+    )
+
+    if borehole is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Borehole not found",
+        )
+
+    geological_map = db.get(
+        Map,
+        map_id,
+    )
+
+    deposit = db.get(
+        Deposit,
+        geological_map.deposit_id,
+    )
+
+    if (
+        not is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        and not can_edit_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Edit access required",
+        )
+
+    db.delete(
+        borehole,
+    )
+
+    db.commit()
+
+    return None
