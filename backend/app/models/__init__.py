@@ -47,3 +47,9 @@ from app.models.deposit_access import (
 from app.models.borehole import (
     Borehole
 )
+
+from app.models.contour import (
+    ContourPoint,
+    Contour
+)
+

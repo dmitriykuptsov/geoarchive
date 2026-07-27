@@ -115,6 +115,12 @@ class Map(
         cascade="all, delete-orphan",
     )
 
+    contours: Mapped[list["Contour"]] = relationship(
+        "Contour",
+        back_populates="map",
+        cascade="all, delete-orphan",
+    )
+
 
 class MapFile(Base):
 

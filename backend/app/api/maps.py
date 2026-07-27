@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from sqlalchemy import delete
 
 from sqlalchemy.exc import IntegrityError
 
@@ -30,6 +31,11 @@ from app.models.map import (
 
 from app.models.borehole import (
     Borehole
+)
+
+from app.models.contour import (
+    Contour,
+    ContourPoint
 )
 
 from app.models.user import (
@@ -54,6 +60,14 @@ from app.schemas.borehole import (
     BoreholeCreate,
     BoreholeUpdate,
     BoreholeResponse
+)
+
+from app.schemas.contour import (
+    ContourCreate,
+    ContourPointCreate,
+    ContourPointResponse,
+    ContourResponse,
+    ContourUpdate
 )
 
 from app.core.dependencies import (
@@ -1494,6 +1508,472 @@ def delete_borehole(
 
     db.delete(
         borehole,
+    )
+
+    db.commit()
+
+    return None
+
+@router.post(
+    "/{map_id}/contours",
+    response_model=ContourResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_contour(
+    map_id: int,
+    payload: ContourCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+
+    geological_map = db.get(
+        Map,
+        map_id,
+    )
+
+    if geological_map is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Map not found",
+        )
+
+    deposit = db.get(
+        Deposit,
+        geological_map.deposit_id,
+    )
+
+    if (
+        not is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        and not can_edit_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Edit access required",
+        )
+
+    calibration_points = db.scalars(
+        select(MapCalibrationPoint)
+        .where(
+            MapCalibrationPoint.map_id == map_id,
+        )
+        .order_by(
+            MapCalibrationPoint.id,
+        )
+    ).all()
+
+    if len(calibration_points) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "At least 3 calibration points "
+                "are required"
+            ),
+        )
+
+    transformation = (
+        calculate_affine_transformation(
+            calibration_points,
+        )
+    )
+
+    contour = Contour(
+        map_id=map_id,
+        name=payload.name,
+        description=payload.description,
+    )
+
+    for sequence, point in enumerate(
+        payload.points
+    ):
+        longitude, latitude = (
+            transformation.pixel_to_wgs84(
+                float(point.pixel_x),
+                float(point.pixel_y),
+            )
+        )
+
+        contour.points.append(
+            ContourPoint(
+                sequence=sequence,
+                pixel_x=point.pixel_x,
+                pixel_y=point.pixel_y,
+                longitude=longitude,
+                latitude=latitude,
+            )
+        )
+
+    db.add(
+        contour,
+    )
+
+    try:
+        db.commit()
+
+    except IntegrityError as exc:
+        db.rollback()
+
+        if (
+            "uq_contour_map_name"
+            in str(exc.orig)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "A contour with this name "
+                    "already exists on this map"
+                ),
+            )
+
+        raise
+    return contour
+
+
+@router.get(
+    "/{map_id}/contours",
+    response_model=list[ContourResponse],
+)
+def list_contours(
+    map_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+
+    geological_map = db.get(
+        Map,
+        map_id,
+    )
+
+    if geological_map is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Map not found",
+        )
+
+    deposit = db.get(
+        Deposit,
+        geological_map.deposit_id,
+    )
+
+    if (
+        not is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        and not can_view_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="View access required",
+        )
+    
+    contours = db.scalars(
+        select(Contour)
+        .where(
+            Contour.map_id == map_id,
+        )
+        .order_by(
+            Contour.id,
+        )
+    ).all()
+
+    return contours
+
+@router.get(
+    "/{map_id}/contours/{contour_id}",
+    response_model=ContourResponse,
+)
+def get_contour(
+    map_id: int,
+    contour_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+
+    geological_map = db.get(
+        Map,
+        map_id,
+    )
+
+    if geological_map is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Map not found",
+        )
+
+    deposit = db.get(
+        Deposit,
+        geological_map.deposit_id,
+    )
+
+    if (
+        not is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        and not can_view_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="View access required",
+        )
+
+    contour = db.scalar(
+        select(Contour)
+        .where(
+            Contour.id == contour_id,
+            Contour.map_id == map_id,
+        )
+    )
+
+    if contour is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contour not found",
+        )
+
+    return contour
+
+@router.patch(
+    "/{map_id}/contours/{contour_id}",
+    response_model=ContourResponse,
+)
+def update_contour(
+    map_id: int,
+    contour_id: int,
+    payload: ContourUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+
+    geological_map = db.get(
+        Map,
+        map_id,
+    )
+
+    if geological_map is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Map not found",
+        )
+
+    deposit = db.get(
+        Deposit,
+        geological_map.deposit_id,
+    )
+
+    if (
+        not is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        and not can_view_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="View access required",
+        )
+
+    contour = db.scalar(
+        select(Contour)
+        .where(
+            Contour.id == contour_id,
+            Contour.map_id == map_id,
+        )
+    )
+
+    if contour is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contour not found",
+        )
+
+    update_data = payload.model_dump(
+        exclude_unset=True,
+    )
+
+    if "name" in update_data:
+        contour.name = update_data[
+            "name"
+        ]
+
+    if "description" in update_data:
+        contour.description = update_data[
+            "description"
+        ]
+
+    calibration_points = db.scalars(
+        select(MapCalibrationPoint)
+        .where(
+            MapCalibrationPoint.map_id == map_id,
+        )
+        .order_by(
+            MapCalibrationPoint.id,
+        )
+    ).all()
+
+    if len(calibration_points) < 3:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "At least 3 calibration points "
+                "are required"
+            ),
+        )
+
+    transformation = (
+        calculate_affine_transformation(
+            calibration_points,
+        )
+    )
+
+    contour.points.clear()
+
+    if "points" in update_data:
+
+        db.execute(
+            delete(ContourPoint).where(
+                ContourPoint.contour_id
+                == contour.id
+            )
+        )
+
+        # Flush the DELETE immediately
+        db.flush()
+
+        for sequence, point in enumerate(
+            payload.points
+        ):
+            longitude, latitude = (
+                transformation.pixel_to_wgs84(
+                    float(point.pixel_x),
+                    float(point.pixel_y),
+                )
+            )
+
+            contour.points.append(
+                ContourPoint(
+                    sequence=sequence,
+                    pixel_x=point.pixel_x,
+                    pixel_y=point.pixel_y,
+                    longitude=longitude,
+                    latitude=latitude,
+                )
+            )
+
+    try:
+        db.commit()
+
+    except IntegrityError as exc:
+        db.rollback()
+
+        if (
+            "uq_contour_map_name"
+            in str(exc.orig)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "A contour with this name "
+                    "already exists on this map"
+                ),
+            )
+
+        raise
+
+    db.refresh(
+        contour,
+    )
+
+    return contour
+
+@router.delete(
+    "/{map_id}/contours/{contour_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_contour(
+    map_id: int,
+    contour_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_password_changed,
+    ),
+):
+    
+    geological_map = db.get(
+        Map,
+        map_id,
+    )
+
+    if geological_map is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Map not found",
+        )
+
+    deposit = db.get(
+            Deposit,
+            geological_map.deposit_id,
+        )
+
+    if (
+        not is_global_admin(
+            db=db,
+            user=current_user,
+        )
+        and not can_view_deposit(
+            db,
+            current_user,
+            deposit,
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="View access required",
+        )
+
+    contour = db.scalar(
+        select(Contour)
+        .where(
+            Contour.id == contour_id,
+            Contour.map_id == map_id,
+        )
+    )
+
+    if contour is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Contour not found",
+        )
+
+    db.delete(
+        contour,
     )
 
     db.commit()
